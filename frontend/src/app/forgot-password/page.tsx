@@ -31,7 +31,7 @@ export default function ForgotPasswordPage() {
       setLoading(true);
 
       const response = await fetch(
-        "http://localhost:5000/api/auth/forgot-password",
+        "https://tinnitus-ai-platform.onrender.com/api/auth/forgot-password",
         {
           method: "POST",
           headers: {

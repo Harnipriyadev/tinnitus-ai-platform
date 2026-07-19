@@ -152,7 +152,7 @@ export default function DashboardPage() {
 
       try {
         const response = await fetch(
-          "http://localhost:5000/api/assessment/dashboard",
+          "https://tinnitus-ai-platform.onrender.com/api/assessment/dashboard",
           {
             headers: {
               Authorization: `Bearer ${token}`,

@@ -35,7 +35,7 @@ export default function HeroRight() {
       setLoading(true);
 
       const response = await fetch(
-        "http://localhost:5000/api/auth/login",
+        "https://tinnitus-ai-platform.onrender.com/api/auth/login",
         {
           method: "POST",
           headers: {

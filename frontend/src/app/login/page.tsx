@@ -54,7 +54,7 @@ export default function LoginPage() {
       setLoading(true);
 
       const response = await fetch(
-        "http://localhost:5000/api/auth/login",
+        "https://tinnitus-ai-platform.onrender.com/api/auth/login",
         {
           method: "POST",
           headers: {
@@ -102,7 +102,7 @@ if (rememberMe) {
 // Check whether this user already completed an assessment
 try {
   const dashboardResponse = await fetch(
-    "http://localhost:5000/api/assessment/dashboard",
+    "https://tinnitus-ai-platform.onrender.com/api/assessment/dashboard",
     {
       method: "GET",
 

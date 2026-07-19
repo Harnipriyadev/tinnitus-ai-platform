@@ -50,7 +50,7 @@ export default function WelcomePage() {
 
       try {
         const response = await fetch(
-          "http://localhost:5000/api/assessment/dashboard",
+          "https://tinnitus-ai-platform.onrender.com/api/assessment/dashboard",
           {
             method: "GET",
 
