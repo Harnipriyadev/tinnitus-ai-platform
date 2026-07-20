@@ -5,8 +5,8 @@ import json
 # Read JSON input from Node.js
 input_data = json.loads(sys.argv[1])
 
-# Convert to DataFrame
-df = pd.DataFrame([input_data])
+
+
 
 # Get scores
 thi = int(input_data["thi_score"])
