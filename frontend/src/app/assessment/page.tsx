@@ -156,7 +156,7 @@ export default function AssessmentPage() {
 
     try {
       const response = await fetch(
-        "https://tinnitus-ai-platform.onrender.com/api/assessment",
+        `${process.env.NEXT_PUBLIC_API_URL}/api/assessment`,
         {
           method: "POST",
           headers: {

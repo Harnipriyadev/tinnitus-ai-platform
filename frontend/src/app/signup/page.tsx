@@ -21,7 +21,7 @@ export default function SignupPage() {
     }
 
     try {
-      const response = await fetch("https://tinnitus-ai-platform.onrender.com/api/auth/register", {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/assessment/dashboard`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

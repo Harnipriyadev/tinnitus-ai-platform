@@ -4,6 +4,7 @@ const bcrypt = require("bcryptjs");
 const User = require("../models/User");
 const generateToken = require("../utils/generateToken");
 const sendEmail = require("../utils/sendEmail");
+const admin = require("../config/firebaseAdmin");
 
 // ==========================
 // Register User
@@ -85,10 +86,17 @@ const loginUser = async (req, res) => {
       });
     }
 
-    const passwordMatches = await bcrypt.compare(
-      password,
-      user.password
-    );
+    if (!user.password) {
+  return res.status(401).json({
+    message:
+      "This account uses Google sign-in. Please continue with Google.",
+  });
+}
+
+const passwordMatches = await bcrypt.compare(
+  password,
+  user.password
+);
 
     if (!passwordMatches) {
       return res.status(401).json({
@@ -304,10 +312,102 @@ const resetPassword = async (req, res) => {
     });
   }
 };
+// ==========================
+// Google Login
+// ==========================
+const googleLogin = async (req, res) => {
+  try {
+    const { idToken } = req.body;
+
+    if (!idToken) {
+      return res.status(400).json({
+        message: "Google authentication token is required",
+      });
+    }
+
+    const decodedToken = await admin
+      .auth()
+      .verifyIdToken(idToken);
+
+    const {
+      uid,
+      email,
+      name,
+      picture,
+      email_verified: emailVerified,
+    } = decodedToken;
+
+    if (!email || !emailVerified) {
+      return res.status(401).json({
+        message: "Google email could not be verified",
+      });
+    }
+
+    const normalizedEmail = email.trim().toLowerCase();
+
+    let user = await User.findOne({
+      $or: [
+        { firebaseUid: uid },
+        { email: normalizedEmail },
+      ],
+    });
+
+    if (!user) {
+      user = await User.create({
+        fullName:
+          name?.trim() || normalizedEmail.split("@")[0],
+        email: normalizedEmail,
+        firebaseUid: uid,
+        profilePicture: picture || "",
+      });
+    } else {
+      let userChanged = false;
+
+      if (!user.firebaseUid) {
+        user.firebaseUid = uid;
+        userChanged = true;
+      }
+
+      if (!user.profilePicture && picture) {
+        user.profilePicture = picture;
+        userChanged = true;
+      }
+
+      if (userChanged) {
+        await user.save();
+      }
+    }
+
+    return res.status(200).json({
+      _id: user._id,
+      fullName: user.fullName,
+      email: user.email,
+      profilePicture: user.profilePicture,
+      token: generateToken(user._id),
+    });
+  } catch (error) {
+    console.error("Google login error:", error);
+
+    if (
+      error.code?.startsWith("auth/") ||
+      error.code === "app/invalid-credential"
+    ) {
+      return res.status(401).json({
+        message:
+          "Google authentication failed. Please try again.",
+      });
+    }
+
+    return res.status(500).json({
+      message: "Unable to complete Google login",
+    });
+  }
+};
 
 module.exports = {
   registerUser,
   loginUser,
+  googleLogin,
   forgotPassword,
   resetPassword,
 };

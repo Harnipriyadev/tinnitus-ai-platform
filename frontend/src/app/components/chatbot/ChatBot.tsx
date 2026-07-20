@@ -130,7 +130,7 @@ export default function ChatBot() {
 
     try {
       const response = await fetch(
-        "https://tinnitus-ai-platform.onrender.com/api/assistant/chat",
+        `${process.env.NEXT_PUBLIC_API_URL}/api/assessment/dashboard`,
         {
           method: "POST",
 

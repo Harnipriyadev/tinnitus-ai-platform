@@ -1,13 +1,11 @@
 "use client";
 
-import {
-  FormEvent,
-  useEffect,
-  useState,
-} from "react";
-
+import { FormEvent, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { signInWithPopup } from "firebase/auth";
+
+import { auth, googleProvider } from "../../../../lib/firebase";
 
 import {
   AlertCircle,
@@ -42,7 +40,10 @@ export default function LoginForm() {
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
   const [error, setError] = useState("");
+
+  const authenticationBusy = loading || googleLoading;
 
   useEffect(() => {
     const rememberedEmail =
@@ -54,19 +55,34 @@ export default function LoginForm() {
     }
   }, []);
 
+  const saveAuthenticatedUser = (data: LoginResponse) => {
+    if (!data.token) {
+      throw new Error("Authentication token was not received");
+    }
+
+    localStorage.setItem("token", data.token);
+
+    localStorage.setItem(
+      "user",
+      JSON.stringify({
+        _id: data._id,
+        fullName: data.fullName,
+        email: data.email,
+      })
+    );
+  };
+
   const findLoginDestination = async (
     token: string
   ): Promise<"/dashboard" | "/assessment"> => {
     try {
       const response = await fetch(
-        "https://tinnitus-ai-platform.onrender.com/api/assessment/dashboard",
+       `${process.env.NEXT_PUBLIC_API_URL}/api/assessment/dashboard`,
         {
           method: "GET",
-
           headers: {
             Authorization: `Bearer ${token}`,
           },
-
           cache: "no-store",
         }
       );
@@ -91,6 +107,22 @@ export default function LoginForm() {
     }
   };
 
+  const completeLogin = async (data: LoginResponse) => {
+    if (!data.token) {
+      throw new Error(
+        data.message || "Authentication failed"
+      );
+    }
+
+    saveAuthenticatedUser(data);
+
+    const destination = await findLoginDestination(
+      data.token
+    );
+
+    router.replace(destination);
+  };
+
   const handleLogin = async (
     event: FormEvent<HTMLFormElement>
   ) => {
@@ -106,14 +138,12 @@ export default function LoginForm() {
 
     try {
       const response = await fetch(
-        "https://tinnitus-ai-platform.onrender.com/api/auth/login",
+        `${process.env.NEXT_PUBLIC_API_URL}/api/auth/login`,
         {
           method: "POST",
-
           headers: {
             "Content-Type": "application/json",
           },
-
           body: JSON.stringify({
             email: email.trim().toLowerCase(),
             password,
@@ -129,20 +159,6 @@ export default function LoginForm() {
         );
       }
 
-      // Save authentication token
-      localStorage.setItem("token", data.token);
-
-      // Save basic user profile
-      localStorage.setItem(
-        "user",
-        JSON.stringify({
-          _id: data._id,
-          fullName: data.fullName,
-          email: data.email,
-        })
-      );
-
-      // Remember email when selected
       if (rememberMe) {
         localStorage.setItem(
           "rememberEmail",
@@ -152,13 +168,7 @@ export default function LoginForm() {
         localStorage.removeItem("rememberEmail");
       }
 
-      // Existing users go directly to their dashboard.
-      // New users must complete their first assessment.
-      const destination = await findLoginDestination(
-        data.token
-      );
-
-      router.replace(destination);
+      await completeLogin(data);
     } catch (error) {
       console.error("Login error:", error);
 
@@ -169,6 +179,73 @@ export default function LoginForm() {
       );
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleGoogleLogin = async () => {
+    
+    setError("");
+    setGoogleLoading(true);
+
+    try {
+      const firebaseResult = await signInWithPopup(
+        auth,
+        googleProvider
+      );
+
+      const firebaseIdToken =
+        await firebaseResult.user.getIdToken();
+
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL}/api/auth/google`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            idToken: firebaseIdToken,
+          }),
+        }
+      );
+
+      const data: LoginResponse = await response.json();
+
+      if (!response.ok || !data.token) {
+        throw new Error(
+          data.message || "Google login failed"
+        );
+      }
+
+      await completeLogin(data);
+    } catch (error) {
+      console.error("Google login error:", error);
+
+      const firebaseError = error as {
+        code?: string;
+        message?: string;
+      };
+
+      if (
+        firebaseError.code ===
+        "auth/popup-closed-by-user"
+      ) {
+        setError("Google sign-in was cancelled.");
+      } else if (
+        firebaseError.code ===
+        "auth/popup-blocked"
+      ) {
+        setError(
+          "The Google sign-in popup was blocked. Allow popups and try again."
+        );
+      } else {
+        setError(
+          firebaseError.message ||
+            "Unable to sign in with Google"
+        );
+      }
+    } finally {
+      setGoogleLoading(false);
     }
   };
 
@@ -192,12 +269,10 @@ export default function LoginForm() {
               className="mt-0.5 shrink-0"
               size={18}
             />
-
             <span>{error}</span>
           </div>
         )}
 
-        {/* Email */}
         <div className="relative mb-5">
           <Mail
             className="absolute left-4 top-4 text-cyan-400"
@@ -212,13 +287,12 @@ export default function LoginForm() {
             }
             placeholder="Email Address"
             autoComplete="email"
-            disabled={loading}
+            disabled={authenticationBusy}
             required
             className="w-full rounded-xl border border-cyan-500/20 bg-slate-900/70 py-4 pl-12 pr-4 text-white outline-none transition placeholder:text-slate-500 focus:border-cyan-400 disabled:opacity-60"
           />
         </div>
 
-        {/* Password */}
         <div className="relative mb-5">
           <Lock
             className="absolute left-4 top-4 text-cyan-400"
@@ -233,7 +307,7 @@ export default function LoginForm() {
             }
             placeholder="Password"
             autoComplete="current-password"
-            disabled={loading}
+            disabled={authenticationBusy}
             required
             className="w-full rounded-xl border border-cyan-500/20 bg-slate-900/70 py-4 pl-12 pr-12 text-white outline-none transition placeholder:text-slate-500 focus:border-cyan-400 disabled:opacity-60"
           />
@@ -243,7 +317,7 @@ export default function LoginForm() {
             onClick={() =>
               setShowPassword((current) => !current)
             }
-            disabled={loading}
+            disabled={authenticationBusy}
             className="absolute right-4 top-4 text-slate-400 transition hover:text-cyan-300 disabled:opacity-50"
             aria-label={
               showPassword
@@ -259,7 +333,6 @@ export default function LoginForm() {
           </button>
         </div>
 
-        {/* Remember */}
         <div className="mb-8 flex items-center justify-between">
           <label className="flex cursor-pointer items-center gap-2 text-sm text-gray-300">
             <input
@@ -268,7 +341,7 @@ export default function LoginForm() {
               onChange={(event) =>
                 setRememberMe(event.target.checked)
               }
-              disabled={loading}
+              disabled={authenticationBusy}
               className="accent-cyan-400"
             />
 
@@ -283,10 +356,9 @@ export default function LoginForm() {
           </Link>
         </div>
 
-        {/* Login */}
         <button
           type="submit"
-          disabled={loading}
+          disabled={authenticationBusy}
           className="flex w-full items-center justify-center gap-3 rounded-xl bg-cyan-400 py-4 font-bold text-black transition hover:bg-cyan-300 disabled:cursor-not-allowed disabled:opacity-60"
         >
           {loading ? (
@@ -295,7 +367,6 @@ export default function LoginForm() {
                 className="animate-spin"
                 size={20}
               />
-
               Checking your account...
             </>
           ) : (
@@ -310,14 +381,28 @@ export default function LoginForm() {
           OR
         </div>
 
-        {/* Google placeholder */}
         <button
           type="button"
-          disabled
-          title="Google authentication will be added later"
-          className="w-full cursor-not-allowed rounded-xl border border-cyan-500/30 py-4 text-white opacity-50"
+          onClick={handleGoogleLogin}
+          disabled={authenticationBusy}
+          className="flex w-full items-center justify-center gap-3 rounded-xl border border-cyan-500/30 py-4 font-semibold text-white transition hover:border-cyan-300 hover:bg-cyan-400/10 disabled:cursor-not-allowed disabled:opacity-60"
         >
-          Continue with Google — Coming Soon
+          {googleLoading ? (
+            <>
+              <LoaderCircle
+                className="animate-spin"
+                size={20}
+              />
+              Connecting to Google...
+            </>
+          ) : (
+            <>
+              <span className="text-xl font-bold text-blue-400">
+                G
+              </span>
+              Continue with Google
+            </>
+          )}
         </button>
 
         <p className="mt-8 text-center text-gray-400">

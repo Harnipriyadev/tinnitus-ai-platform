@@ -26,7 +26,7 @@ export default function HomeContainer() {
       case "contact":
         return <ContactScreen />;
       default:
-        return <HomeScreen />;
+       return <HomeScreen onNavigate={setScreen} />;
     }
   };
 

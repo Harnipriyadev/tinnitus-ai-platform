@@ -5,6 +5,7 @@ const router = express.Router();
 const {
   registerUser,
   loginUser,
+  googleLogin,
   forgotPassword,
   resetPassword,
 } = require("../controllers/authController");
@@ -14,6 +15,9 @@ router.post("/register", registerUser);
 
 // Login
 router.post("/login", loginUser);
+
+// Google Login
+router.post("/google", googleLogin);
 
 // Forgot Password
 router.post(

@@ -5,17 +5,33 @@ const userSchema = new mongoose.Schema(
     fullName: {
       type: String,
       required: true,
+      trim: true,
     },
 
     email: {
       type: String,
       required: true,
       unique: true,
+      lowercase: true,
+      trim: true,
     },
 
     password: {
       type: String,
-      required: true,
+      required: function () {
+        return !this.firebaseUid;
+      },
+    },
+
+    firebaseUid: {
+      type: String,
+      unique: true,
+      sparse: true,
+    },
+
+    profilePicture: {
+      type: String,
+      default: "",
     },
 
     resetPasswordToken: String,
@@ -27,7 +43,4 @@ const userSchema = new mongoose.Schema(
   }
 );
 
-module.exports = mongoose.model(
-  "User",
-  userSchema
-);
+module.exports = mongoose.model("User", userSchema);
