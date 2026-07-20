@@ -1,6 +1,6 @@
 import sys
 import json
-import pandas as pd
+
 
 # Read JSON input from Node.js
 input_data = json.loads(sys.argv[1])
@@ -9,11 +9,11 @@ input_data = json.loads(sys.argv[1])
 df = pd.DataFrame([input_data])
 
 # Get scores
-thi = int(df["thi_score"].iloc[0])
-tfi = int(df["tfi_score"].iloc[0])
-anxiety = int(df["hads_anxiety"].iloc[0])
-depression = int(df["hads_depression"].iloc[0])
-sleep = int(df["sleep_score"].iloc[0])
+thi = int(input_data["thi_score"])
+tfi = int(input_data["tfi_score"])
+anxiety = int(input_data["hads_anxiety"])
+depression = int(input_data["hads_depression"])
+sleep = int(input_data["sleep_score"])
 
 # Calculate severity
 avg_score = (thi + tfi) / 2
