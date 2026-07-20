@@ -1,9 +1,15 @@
 import Hero from "../hero/Hero";
 
-export default function HomeScreen() {
+type HomeScreenProps = {
+  onNavigate: (screen: string) => void;
+};
+
+export default function HomeScreen({
+  onNavigate,
+}: HomeScreenProps) {
   return (
     <div className="h-full w-full">
-      <Hero />
+      <Hero onNavigate={onNavigate} />
     </div>
   );
 }

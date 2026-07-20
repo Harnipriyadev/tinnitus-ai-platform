@@ -12,16 +12,13 @@ export default function Hero({
 }: HeroProps) {
   return (
     <section className="relative h-screen overflow-hidden bg-[#07121F]">
-
       <HeroBackground />
 
       <div className="relative z-10 mx-auto max-w-7xl px-8">
-
         <div className="grid min-h-[85vh] grid-cols-12 items-center gap-10">
-
           {/* Left */}
           <div className="col-span-5">
-            <HeroLeft />
+            <HeroLeft onNavigate={onNavigate} />
           </div>
 
           {/* Center */}
@@ -33,11 +30,8 @@ export default function Hero({
           <div className="col-span-4 flex items-center justify-end">
             <HeroRight />
           </div>
-
         </div>
-
       </div>
-
     </section>
   );
 }
