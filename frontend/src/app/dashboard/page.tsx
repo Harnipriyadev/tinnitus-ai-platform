@@ -152,7 +152,7 @@ export default function DashboardPage() {
 
       try {
         const response = await fetch(
-         `${process.env.NEXT_PUBLIC_API_URL}/api/assessment/dashboard`,
+        `${process.env.NEXT_PUBLIC_API_URL}/api/assistant/chat`,
           {
             headers: {
               Authorization: `Bearer ${token}`,
