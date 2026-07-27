@@ -1,11 +1,11 @@
 "use client";
 
-import AIOrb from "./AIOrb";
+import HeroBrain from "./HeroBrain";
 
 export default function HeroCenter() {
   return (
-    <div className="flex h-full items-center justify-center">
-      <AIOrb />
+    <div className="relative flex h-full min-h-[450px] w-full items-center justify-center lg:min-h-[650px]">
+      <HeroBrain />
     </div>
   );
 }

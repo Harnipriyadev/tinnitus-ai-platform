@@ -8,8 +8,8 @@ export default function HomeScreen({
   onNavigate,
 }: HomeScreenProps) {
   return (
-    <div className="h-full w-full">
+    <main className="w-full">
       <Hero onNavigate={onNavigate} />
-    </div>
+    </main>
   );
 }

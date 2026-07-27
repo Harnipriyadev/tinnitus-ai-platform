@@ -26,3 +26,116 @@ body {
 * {
   box-sizing: border-box;
 }
+.hologram-page {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at center, #063b4a 0%, #020817 55%, #000 100%);
+}
+
+.hologram {
+  position: relative;
+  width: 420px;
+  padding: 50px 35px;
+  overflow: hidden;
+  text-align: center;
+  color: #79f7ff;
+  background: rgba(7, 50, 65, 0.25);
+  border: 1px solid rgba(121, 247, 255, 0.7);
+  border-radius: 24px;
+  box-shadow:
+    0 0 15px #00d9ff,
+    inset 0 0 30px rgba(0, 217, 255, 0.2);
+  backdrop-filter: blur(12px);
+  animation: hologramFloat 3s ease-in-out infinite;
+}
+
+.hologram::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: repeating-linear-gradient(
+    to bottom,
+    transparent 0,
+    transparent 4px,
+    rgba(121, 247, 255, 0.08) 5px
+  );
+}
+
+.hologram-content {
+  position: relative;
+  z-index: 2;
+}
+
+.hologram-icon {
+  margin-bottom: 15px;
+  font-size: 75px;
+  filter: drop-shadow(0 0 14px #00eaff);
+}
+
+.hologram h1 {
+  margin-bottom: 15px;
+  font-size: 42px;
+  text-shadow:
+    0 0 8px #00eaff,
+    0 0 20px #00eaff;
+}
+
+.hologram p {
+  color: #c9fbff;
+  line-height: 1.6;
+}
+
+.hologram button {
+  margin-top: 25px;
+  padding: 12px 25px;
+  color: #7af7ff;
+  cursor: pointer;
+  background: transparent;
+  border: 1px solid #7af7ff;
+  border-radius: 30px;
+  box-shadow: 0 0 12px rgba(0, 234, 255, 0.6);
+}
+
+.hologram button:hover {
+  color: #001014;
+  background: #7af7ff;
+  box-shadow: 0 0 25px #00eaff;
+}
+
+.scan-line {
+  position: absolute;
+  z-index: 1;
+  top: -10%;
+  left: 0;
+  width: 100%;
+  height: 4px;
+  background: #b5fbff;
+  box-shadow: 0 0 18px #00eaff;
+  animation: scan 3s linear infinite;
+}
+
+@keyframes scan {
+  from {
+    top: -5%;
+  }
+
+  to {
+    top: 105%;
+  }
+}
+
+@keyframes hologramFloat {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+
+  50% {
+    transform: translateY(-12px);
+  }
+}
