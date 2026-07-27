@@ -17,10 +17,17 @@ export default function BrainCanvas() {
       aria-label="Interactive AI tinnitus brain hologram"
     >
       <Canvas
-        dpr={[1, 1.75]}
+        dpr={[1, 1.25]}
+        shadows={false}
+        performance={{
+          min: 0.5,
+        }}
         gl={{
           antialias: true,
           alpha: true,
+          depth: true,
+          stencil: false,
+          preserveDrawingBuffer: false,
           powerPreference: "high-performance",
         }}
         camera={{
@@ -30,7 +37,6 @@ export default function BrainCanvas() {
           far: 100,
         }}
         onCreated={({ gl }) => {
-          // Maintain a transparent WebGL background
           gl.setClearColor("#07121F", 0);
         }}
         style={{
