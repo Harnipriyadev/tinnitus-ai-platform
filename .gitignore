@@ -16,3 +16,5 @@ backend/.env.*
 .vscode/
 .DS_Store
 Thumbs.db
+# Private doctor verification uploads
+backend/private_uploads/

@@ -1,69 +1,135 @@
 "use client";
 
-import { FormEvent, useState } from "react";
-import Link from "next/link";
-import { ArrowLeft, Mail } from "lucide-react";
+import {
+  FormEvent,
+  useState,
+} from "react";
 
-type ForgotPasswordResponse = {
-  message?: string;
-};
+import Link from "next/link";
+
+import {
+  sendPasswordResetEmail,
+} from "firebase/auth";
+
+import {
+  ArrowLeft,
+  Mail,
+} from "lucide-react";
+
+import {
+  auth,
+} from "../../../lib/firebase";
 
 export default function ForgotPasswordPage() {
-  const [email, setEmail] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [message, setMessage] = useState("");
-  const [error, setError] = useState("");
+  const [email, setEmail] =
+    useState("");
+
+  const [loading, setLoading] =
+    useState(false);
+
+  const [message, setMessage] =
+    useState("");
+
+  const [error, setError] =
+    useState("");
 
   const handleSubmit = async (
-    event: FormEvent<HTMLFormElement>
+    event:
+      FormEvent<HTMLFormElement>
   ) => {
     event.preventDefault();
 
     setMessage("");
     setError("");
 
-    if (!email.trim()) {
-      setError("Please enter your email address.");
+    const normalizedEmail =
+      email
+        .trim()
+        .toLowerCase();
+
+    if (!normalizedEmail) {
+      setError(
+        "Please enter your email address."
+      );
+
       return;
     }
 
-    try {
-      setLoading(true);
+    setLoading(true);
 
-      const response = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL}/api/assessment/dashboard`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            email: email.trim().toLowerCase(),
-          }),
-        }
+    try {
+      /*
+       * Firebase sends and securely validates
+       * the password-reset link.
+       */
+      await sendPasswordResetEmail(
+        auth,
+        normalizedEmail
       );
 
-      const data: ForgotPasswordResponse =
-        await response.json();
-
-      if (!response.ok) {
-        throw new Error(
-          data.message || "Unable to send reset email."
-        );
-      }
-
+      /*
+       * Use a generic response so the page
+       * does not reveal registered accounts.
+       */
       setMessage(
-        data.message ||
-          "Password reset link has been sent."
+        "If an account exists with this email, Firebase password-reset instructions have been sent. Check your inbox and spam folder."
       );
 
       setEmail("");
     } catch (error) {
-      setError(
-        error instanceof Error
-          ? error.message
-          : "Unable to connect to the backend server."
+      console.error(
+        "Firebase password reset error:",
+        error
       );
+
+      const firebaseError =
+        error as {
+          code?: string;
+        };
+
+      switch (
+        firebaseError.code
+      ) {
+        case "auth/invalid-email":
+          setError(
+            "Enter a valid email address."
+          );
+          break;
+
+        case "auth/too-many-requests":
+          setError(
+            "Too many reset requests. Wait a few minutes before trying again."
+          );
+          break;
+
+        case "auth/network-request-failed":
+          setError(
+            "Unable to connect. Check your internet connection."
+          );
+          break;
+
+        case "auth/unauthorized-domain":
+          setError(
+            "This website is not authorized in Firebase."
+          );
+          break;
+
+        case "auth/user-not-found":
+          /*
+           * Keep the response generic to prevent
+           * email-account enumeration.
+           */
+          setMessage(
+            "If an account exists with this email, Firebase password-reset instructions have been sent. Check your inbox and spam folder."
+          );
+          setEmail("");
+          break;
+
+        default:
+          setError(
+            "Unable to send the reset email. Please try again."
+          );
+      }
     } finally {
       setLoading(false);
     }
@@ -76,7 +142,10 @@ export default function ForgotPasswordPage() {
       <div className="relative z-10 w-full max-w-md rounded-3xl border border-cyan-500/20 bg-white/5 p-8 shadow-[0_0_50px_rgba(6,182,212,0.15)] backdrop-blur-2xl">
         <div className="mb-8 text-center">
           <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-2xl border border-cyan-500/30 bg-cyan-500/10">
-            <Mail className="text-cyan-400" size={30} />
+            <Mail
+              className="text-cyan-400"
+              size={30}
+            />
           </div>
 
           <h1 className="text-3xl font-bold text-white">
@@ -84,12 +153,16 @@ export default function ForgotPasswordPage() {
           </h1>
 
           <p className="mt-3 text-gray-400">
-            Enter your registered email address and we will
-            send you a password reset link.
+            Enter your registered
+            email address and Firebase
+            will send a secure
+            password-reset link.
           </p>
         </div>
 
-        <form onSubmit={handleSubmit}>
+        <form
+          onSubmit={handleSubmit}
+        >
           <div className="relative mb-5">
             <Mail
               size={20}
@@ -100,23 +173,35 @@ export default function ForgotPasswordPage() {
               type="email"
               value={email}
               onChange={(event) =>
-                setEmail(event.target.value)
+                setEmail(
+                  event.target.value
+                )
               }
               placeholder="Email Address"
+              aria-label="Email address"
               autoComplete="email"
+              inputMode="email"
+              maxLength={254}
               required
-              className="w-full rounded-xl border border-white/10 bg-[#0E1C2F] py-4 pl-12 pr-4 text-white outline-none transition placeholder:text-gray-500 focus:border-cyan-400 focus:ring-2 focus:ring-cyan-400/30"
+              disabled={loading}
+              className="w-full rounded-xl border border-white/10 bg-[#0E1C2F] py-4 pl-12 pr-4 text-white outline-none transition placeholder:text-gray-500 focus:border-cyan-400 focus:ring-2 focus:ring-cyan-400/30 disabled:opacity-60"
             />
           </div>
 
           {error && (
-            <div className="mb-5 rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-300">
+            <div
+              role="alert"
+              className="mb-5 rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-300"
+            >
               {error}
             </div>
           )}
 
           {message && (
-            <div className="mb-5 rounded-xl border border-green-500/30 bg-green-500/10 px-4 py-3 text-sm text-green-300">
+            <div
+              role="status"
+              className="mb-5 rounded-xl border border-green-500/30 bg-green-500/10 px-4 py-3 text-sm leading-6 text-green-300"
+            >
               {message}
             </div>
           )}
@@ -129,6 +214,7 @@ export default function ForgotPasswordPage() {
             {loading ? (
               <span className="flex items-center gap-3">
                 <span className="h-5 w-5 animate-spin rounded-full border-2 border-black/30 border-t-black" />
+
                 Sending...
               </span>
             ) : (
@@ -141,7 +227,10 @@ export default function ForgotPasswordPage() {
           href="/login"
           className="mt-7 flex items-center justify-center gap-2 text-sm font-medium text-cyan-400 transition hover:text-cyan-300"
         >
-          <ArrowLeft size={18} />
+          <ArrowLeft
+            size={18}
+          />
+
           Back to Login
         </Link>
       </div>

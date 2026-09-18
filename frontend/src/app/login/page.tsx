@@ -1,70 +1,154 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import Link from "next/link";
 import { motion } from "framer-motion";
+
 import {
   BrainCircuit,
+  LoaderCircle,
   ShieldCheck,
 } from "lucide-react";
 
 import LoginForm from "../components/auth/LoginForm";
 
+/*
+ * Load the WebGL brain only in the browser.
+ * This keeps the login form available while
+ * the heavier 3D model is loading.
+ */
+const HeroBrain = dynamic(
+  () =>
+    import(
+      "../components/hero/HeroBrain"
+    ),
+  {
+    ssr: false,
+
+    loading: () => (
+      <div className="flex h-[560px] w-full items-center justify-center">
+        <div className="flex flex-col items-center gap-4 text-cyan-300">
+          <LoaderCircle
+            size={38}
+            className="animate-spin"
+          />
+
+          <p className="text-sm uppercase tracking-[0.25em]">
+            Loading neural system
+          </p>
+        </div>
+      </div>
+    ),
+  }
+);
+
 const particles = Array.from(
-  { length: 35 },
+  {
+    length: 35,
+  },
   (_, index) => ({
-    left: `${(index * 29) % 100}%`,
-    top: `${(index * 17) % 100}%`,
-    delay: (index % 10) * 0.25,
-    duration: 3 + (index % 5),
+    left:
+      `${(index * 29) % 100}%`,
+
+    top:
+      `${(index * 17) % 100}%`,
+
+    delay:
+      (index % 10) * 0.25,
+
+    duration:
+      3 + (index % 5),
   })
 );
 
 export default function LoginPage() {
   return (
-    <main className="relative min-h-screen overflow-hidden bg-[#030b18] px-6 py-10 text-white">
+    <main className="relative min-h-screen overflow-hidden bg-[#030b18] px-5 py-8 text-white sm:px-8">
       {/* Background */}
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_30%,rgba(6,182,212,0.14),transparent_32%),radial-gradient(circle_at_85%_70%,rgba(59,130,246,0.12),transparent_32%),linear-gradient(135deg,#020617,#061526,#020617)]" />
 
-      {/* Grid */}
+      {/* Background grid */}
       <div
-        className="absolute inset-0 opacity-20"
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-0 opacity-20"
         style={{
           backgroundImage:
             "linear-gradient(rgba(34,211,238,0.08) 1px, transparent 1px), linear-gradient(90deg, rgba(34,211,238,0.08) 1px, transparent 1px)",
-          backgroundSize: "55px 55px",
+
+          backgroundSize:
+            "55px 55px",
         }}
       />
 
-      {/* Particles */}
+      {/* Neural particles */}
       <div className="pointer-events-none absolute inset-0 overflow-hidden">
-        {particles.map((particle, index) => (
-          <motion.span
-            key={index}
-            className="absolute h-1.5 w-1.5 rounded-full bg-cyan-400"
-            style={{
-              left: particle.left,
-              top: particle.top,
-            }}
-            animate={{
-              y: [-12, 14, -12],
-              opacity: [0.15, 0.8, 0.15],
-              scale: [1, 1.8, 1],
-            }}
-            transition={{
-              duration: particle.duration,
-              delay: particle.delay,
-              repeat: Infinity,
-              ease: "easeInOut",
-            }}
-          />
-        ))}
+        {particles.map(
+          (
+            particle,
+            index
+          ) => (
+            <motion.span
+              key={index}
+              className="absolute h-1.5 w-1.5 rounded-full bg-cyan-400"
+              style={{
+                left:
+                  particle.left,
+
+                top:
+                  particle.top,
+              }}
+              animate={{
+                y: [
+                  -12,
+                  14,
+                  -12,
+                ],
+
+                opacity: [
+                  0.15,
+                  0.8,
+                  0.15,
+                ],
+
+                scale: [
+                  1,
+                  1.8,
+                  1,
+                ],
+              }}
+              transition={{
+                duration:
+                  particle.duration,
+
+                delay:
+                  particle.delay,
+
+                repeat:
+                  Infinity,
+
+                ease:
+                  "easeInOut",
+              }}
+            />
+          )
+        )}
       </div>
 
-      {/* Moving glow */}
+      {/* Moving ambient glow */}
       <motion.div
+        aria-hidden="true"
         animate={{
-          x: [-80, 80, -80],
-          y: [-30, 30, -30],
+          x: [
+            -80,
+            80,
+            -80,
+          ],
+
+          y: [
+            -30,
+            30,
+            -30,
+          ],
         }}
         transition={{
           duration: 14,
@@ -74,13 +158,15 @@ export default function LoginPage() {
         className="pointer-events-none absolute left-[35%] top-[30%] h-80 w-80 rounded-full bg-cyan-500/10 blur-[130px]"
       />
 
-      {/* Home link */}
+      {/* Brand and home link */}
       <Link
         href="/"
         className="relative z-20 inline-flex items-center gap-3 text-lg font-semibold text-white transition hover:text-cyan-300"
       >
         <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-cyan-500 text-black shadow-[0_0_25px_rgba(6,182,212,0.45)]">
-          <BrainCircuit size={25} />
+          <BrainCircuit
+            size={25}
+          />
         </span>
 
         <span>
@@ -92,118 +178,65 @@ export default function LoginPage() {
         </span>
       </Link>
 
-      <div className="relative z-10 mx-auto grid min-h-[calc(100vh-100px)] max-w-7xl items-center gap-12 lg:grid-cols-2">
-        {/* Left animation */}
+      <div className="relative z-10 mx-auto grid min-h-[calc(100vh-90px)] max-w-[1450px] items-center gap-8 lg:grid-cols-[minmax(0,1.2fr)_minmax(420px,0.8fr)] xl:gap-14">
+        {/* Realistic holographic brain */}
         <motion.section
-          initial={{ opacity: 0, x: -50 }}
-          animate={{ opacity: 1, x: 0 }}
-          transition={{ duration: 0.8 }}
-          className="hidden items-center justify-center lg:flex"
+          initial={{
+            opacity: 0,
+            x: -50,
+          }}
+          animate={{
+            opacity: 1,
+            x: 0,
+          }}
+          transition={{
+            duration: 0.8,
+            ease: "easeOut",
+          }}
+          className="relative hidden min-w-0 items-center justify-center lg:flex"
         >
-          <div className="relative flex h-[520px] w-[520px] items-center justify-center">
-            <motion.div
-              animate={{
-                scale: [1, 1.15, 1],
-                opacity: [0.35, 0.7, 0.35],
-              }}
-              transition={{
-                duration: 4,
-                repeat: Infinity,
-                ease: "easeInOut",
-              }}
-              className="absolute h-80 w-80 rounded-full bg-cyan-500/20 blur-[110px]"
-            />
+          {/* Glow behind brain */}
+          <motion.div
+            aria-hidden="true"
+            animate={{
+              scale: [
+                1,
+                1.15,
+                1,
+              ],
 
-            <motion.div
-              animate={{ rotate: 360 }}
-              transition={{
-                duration: 25,
-                repeat: Infinity,
-                ease: "linear",
-              }}
-              className="absolute h-[360px] w-[360px] rounded-full border border-cyan-400/20"
-            >
-              <span className="absolute left-1/2 top-[-7px] h-3.5 w-3.5 -translate-x-1/2 rounded-full bg-cyan-300 shadow-[0_0_20px_#22d3ee]" />
-            </motion.div>
+              opacity: [
+                0.3,
+                0.65,
+                0.3,
+              ],
+            }}
+            transition={{
+              duration: 4,
+              repeat: Infinity,
+              ease: "easeInOut",
+            }}
+            className="pointer-events-none absolute h-[420px] w-[420px] rounded-full bg-cyan-500/15 blur-[130px]"
+          />
 
-            <motion.div
-              animate={{ rotate: -360 }}
-              transition={{
-                duration: 18,
-                repeat: Infinity,
-                ease: "linear",
-              }}
-              className="absolute h-[280px] w-[280px] rounded-full border border-dashed border-cyan-400/30"
-            />
+          <div className="relative flex h-[650px] w-full max-w-[680px] items-center justify-center">
+            <HeroBrain />
 
-            <motion.div
-              animate={{
-                scale: [1, 1.06, 1],
-              }}
-              transition={{
-                duration: 2.5,
-                repeat: Infinity,
-                ease: "easeInOut",
-              }}
-              className="absolute h-[200px] w-[200px] rounded-full border border-cyan-300/40"
-            />
-
-            <motion.div
-              animate={{
-                y: [-10, 10, -10],
-                scale: [1, 1.06, 1],
-              }}
-              transition={{
-                duration: 4,
-                repeat: Infinity,
-                ease: "easeInOut",
-              }}
-              className="relative flex h-36 w-36 items-center justify-center rounded-full border border-cyan-300/40 bg-cyan-500/10 shadow-[0_0_80px_rgba(34,211,238,0.55)] backdrop-blur-xl"
-            >
-              <BrainCircuit
-                size={78}
-                className="text-cyan-300 drop-shadow-[0_0_18px_#22d3ee]"
-              />
-
-              <motion.div
-                animate={{
-                  scale: [1, 1.7, 1],
-                  opacity: [0.5, 0, 0.5],
-                }}
-                transition={{
-                  duration: 2.5,
-                  repeat: Infinity,
-                }}
-                className="absolute inset-0 rounded-full border border-cyan-300/40"
-              />
-            </motion.div>
-
-            <motion.div
-              animate={{ rotate: 360 }}
-              transition={{
-                duration: 6,
-                repeat: Infinity,
-                ease: "linear",
-              }}
-              className="absolute h-[330px] w-[330px]"
-            >
-              <div className="absolute left-1/2 top-0 h-1/2 w-[2px] -translate-x-1/2 bg-gradient-to-b from-cyan-300 via-cyan-400/50 to-transparent" />
-            </motion.div>
-
-            <div className="absolute bottom-2 text-center">
+            {/* Brain information */}
+            <div className="pointer-events-none absolute bottom-4 left-1/2 z-30 w-full max-w-md -translate-x-1/2 text-center">
               <p className="text-sm font-semibold uppercase tracking-[0.35em] text-cyan-400">
                 AI Neural Access
               </p>
 
-              <p className="mt-2 max-w-sm text-sm leading-6 text-gray-400">
-                Intelligent tinnitus analysis with secure
-                personalized healthcare access.
+              <p className="mx-auto mt-2 max-w-sm text-sm leading-6 text-gray-400">
+                Secure intelligent tinnitus analysis with
+                personalized hearing-care support.
               </p>
             </div>
           </div>
         </motion.section>
 
-        {/* Working shared login form */}
+        {/* Authentication form */}
         <motion.section
           initial={{
             opacity: 0,
@@ -215,8 +248,11 @@ export default function LoginPage() {
             x: 0,
             scale: 1,
           }}
-          transition={{ duration: 0.8 }}
-          className="flex flex-col items-center justify-center lg:items-end"
+          transition={{
+            duration: 0.8,
+            ease: "easeOut",
+          }}
+          className="flex min-w-0 flex-col items-center justify-center lg:items-end"
         >
           <LoginForm />
 

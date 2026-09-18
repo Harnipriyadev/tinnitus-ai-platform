@@ -1,189 +1,186 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import {
+  FormEvent,
+  useState,
+} from "react";
+
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { Mail, Lock } from "lucide-react";
-import { motion } from "framer-motion";
-import { signInWithPopup } from "firebase/auth";
+import {
+  useRouter,
+} from "next/navigation";
 
 import {
-  auth,
-  googleProvider,
-} from "../../../../lib/firebase";
+  motion,
+} from "framer-motion";
 
-type LoginResponse = {
-  _id?: string;
-  fullName?: string;
-  email?: string;
-  profilePicture?: string;
-  token?: string;
-  message?: string;
+import {
+  Lock,
+  Mail,
+} from "lucide-react";
+
+import {
+  getAuthenticationErrorMessage,
+  loginWithEmail,
+  loginWithGoogle,
+  type UserRole,
+} from "../../../../lib/authService";
+
+const ROLE_DASHBOARD: Record<
+  UserRole,
+  string
+> = {
+  patient:
+    "/dashboard",
+
+  caretaker:
+    "/dashboard/caretaker",
+
+  doctor:
+    "/dashboard/doctor",
+
+  admin:
+    "/dashboard/admin",
 };
 
 export default function HeroRight() {
-  const router = useRouter();
+  const router =
+    useRouter();
 
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [googleLoading, setGoogleLoading] =
-    useState(false);
-  const [error, setError] = useState("");
+  const [
+    email,
+    setEmail,
+  ] = useState("");
 
-  const authenticationBusy = loading || googleLoading;
+  const [
+    password,
+    setPassword,
+  ] = useState("");
 
-  const saveAuthenticatedUser = (
-    data: LoginResponse
+  const [
+    loading,
+    setLoading,
+  ] = useState(false);
+
+  const [
+    googleLoading,
+    setGoogleLoading,
+  ] = useState(false);
+
+  const [
+    error,
+    setError,
+  ] = useState("");
+
+  const authenticationBusy =
+    loading ||
+    googleLoading;
+
+  const redirectByRole = (
+    role: UserRole
   ) => {
-    if (!data.token) {
-      throw new Error(
-        "Authentication token was not received"
-      );
-    }
+    const destination =
+      ROLE_DASHBOARD[role];
 
-    localStorage.setItem("token", data.token);
-
-    localStorage.setItem(
-      "user",
-      JSON.stringify({
-        _id: data._id,
-        fullName: data.fullName,
-        email: data.email,
-        profilePicture: data.profilePicture,
-      })
+    router.replace(
+      destination
     );
   };
 
   const handleLogin = async (
-    event: FormEvent<HTMLFormElement>
+    event:
+      FormEvent<HTMLFormElement>
   ) => {
     event.preventDefault();
+
     setError("");
 
-    if (!email.trim() || !password.trim()) {
-      setError("Please enter your email and password.");
+    if (
+      !email.trim() ||
+      !password
+    ) {
+      setError(
+        "Please enter your email and password."
+      );
+
       return;
     }
 
-    try {
-      setLoading(true);
+    setLoading(true);
 
-      const response = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL}/api/auth/login`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            email: email.trim().toLowerCase(),
-            password,
-          }),
-        }
+    try {
+      const user =
+        await loginWithEmail({
+          email,
+          password,
+          remember: false,
+        });
+
+      redirectByRole(
+        user.role
+      );
+    } catch (error) {
+      console.error(
+        "Login error:",
+        error
       );
 
-      const data: LoginResponse = await response.json();
-
-      if (!response.ok || !data.token) {
-        throw new Error(
-          data.message || "Invalid email or password."
-        );
-      }
-
-      saveAuthenticatedUser(data);
-      router.replace("/welcome");
-    } catch (error) {
-      console.error("Login error:", error);
-
       setError(
-        error instanceof Error
-          ? error.message
-          : "Unable to connect to the backend server."
+        getAuthenticationErrorMessage(
+          error
+        )
       );
     } finally {
       setLoading(false);
     }
   };
 
-  const handleGoogleLogin = async () => {
-    setError("");
-    setGoogleLoading(true);
+  const handleGoogleLogin =
+    async () => {
+      setError("");
 
-    try {
-      const firebaseResult = await signInWithPopup(
-        auth,
-        googleProvider
+      setGoogleLoading(
+        true
       );
 
-      const idToken =
-        await firebaseResult.user.getIdToken();
+      try {
+        const user =
+          await loginWithGoogle(
+            false
+          );
 
-      const response = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL}/api/auth/google`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            idToken,
-          }),
-        }
-      );
+        redirectByRole(
+          user.role
+        );
+      } catch (error) {
+        console.error(
+          "Google login error:",
+          error
+        );
 
-      const data: LoginResponse = await response.json();
-
-      if (!response.ok || !data.token) {
-        throw new Error(
-          data.message || "Google login failed."
+        setError(
+          getAuthenticationErrorMessage(
+            error
+          )
+        );
+      } finally {
+        setGoogleLoading(
+          false
         );
       }
-
-      saveAuthenticatedUser(data);
-      router.replace("/welcome");
-    } catch (error) {
-      console.error("Google login error:", error);
-
-      const firebaseError = error as {
-        code?: string;
-        message?: string;
-      };
-
-      if (
-        firebaseError.code ===
-        "auth/popup-closed-by-user"
-      ) {
-        setError("Google sign-in was cancelled.");
-      } else if (
-        firebaseError.code === "auth/popup-blocked"
-      ) {
-        setError(
-          "Google sign-in popup was blocked. Allow popups and try again."
-        );
-      } else if (
-        firebaseError.code ===
-        "auth/unauthorized-domain"
-      ) {
-        setError(
-          "This website domain is not authorized in Firebase."
-        );
-      } else {
-        setError(
-          firebaseError.message ||
-            "Unable to sign in with Google."
-        );
-      }
-    } finally {
-      setGoogleLoading(false);
-    }
-  };
+    };
 
   return (
     <motion.div
       id="login"
-      initial={{ opacity: 0, x: 80 }}
-      animate={{ opacity: 1, x: 0 }}
+      initial={{
+        opacity: 0,
+        x: 80,
+      }}
+      animate={{
+        opacity: 1,
+        x: 0,
+      }}
       transition={{
         duration: 0.8,
         ease: "easeOut",
@@ -197,11 +194,16 @@ export default function HeroRight() {
           </h2>
 
           <p className="mt-2 text-gray-400">
-            Sign in to your AI Tinnitus account
+            Sign in to your AI
+            Tinnitus account
           </p>
         </div>
 
-        <form onSubmit={handleLogin}>
+        <form
+          onSubmit={
+            handleLogin
+          }
+        >
           <div className="relative mb-5">
             <Mail
               size={20}
@@ -211,13 +213,23 @@ export default function HeroRight() {
             <input
               type="email"
               value={email}
-              onChange={(event) =>
-                setEmail(event.target.value)
+              onChange={(
+                event
+              ) =>
+                setEmail(
+                  event.target
+                    .value
+                )
               }
               placeholder="Email Address"
+              aria-label="Email address"
               autoComplete="email"
+              inputMode="email"
+              maxLength={254}
               required
-              disabled={authenticationBusy}
+              disabled={
+                authenticationBusy
+              }
               className="w-full rounded-xl border border-white/10 bg-[#0E1C2F] py-4 pl-12 pr-4 text-white outline-none transition-all placeholder:text-gray-500 focus:border-cyan-400 focus:ring-2 focus:ring-cyan-400/30 disabled:opacity-60"
             />
           </div>
@@ -230,14 +242,25 @@ export default function HeroRight() {
 
             <input
               type="password"
-              value={password}
-              onChange={(event) =>
-                setPassword(event.target.value)
+              value={
+                password
+              }
+              onChange={(
+                event
+              ) =>
+                setPassword(
+                  event.target
+                    .value
+                )
               }
               placeholder="Password"
+              aria-label="Password"
               autoComplete="current-password"
+              maxLength={128}
               required
-              disabled={authenticationBusy}
+              disabled={
+                authenticationBusy
+              }
               className="w-full rounded-xl border border-white/10 bg-[#0E1C2F] py-4 pl-12 pr-4 text-white outline-none transition-all placeholder:text-gray-500 focus:border-cyan-400 focus:ring-2 focus:ring-cyan-400/30 disabled:opacity-60"
             />
           </div>
@@ -252,20 +275,27 @@ export default function HeroRight() {
           </div>
 
           {error && (
-            <div className="mb-5 rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-300">
+            <div
+              role="alert"
+              className="mb-5 rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-300"
+            >
               {error}
             </div>
           )}
 
           <button
             type="submit"
-            disabled={authenticationBusy}
+            disabled={
+              authenticationBusy
+            }
             className="flex w-full items-center justify-center rounded-xl bg-cyan-500 py-4 font-semibold text-black transition-all duration-300 hover:scale-[1.02] hover:bg-cyan-400 disabled:cursor-not-allowed disabled:opacity-60"
           >
             {loading ? (
               <span className="flex items-center gap-3">
                 <span className="h-5 w-5 animate-spin rounded-full border-2 border-black/30 border-t-black" />
-                Signing In...
+
+                Securing
+                Account...
               </span>
             ) : (
               "Login"
@@ -285,27 +315,36 @@ export default function HeroRight() {
 
         <button
           type="button"
-          onClick={handleGoogleLogin}
-          disabled={authenticationBusy}
+          onClick={
+            handleGoogleLogin
+          }
+          disabled={
+            authenticationBusy
+          }
           className="flex w-full items-center justify-center gap-3 rounded-xl border border-white/10 bg-white/5 py-4 text-white transition-all duration-300 hover:border-cyan-400/40 hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-60"
         >
           {googleLoading ? (
             <>
               <span className="h-5 w-5 animate-spin rounded-full border-2 border-white/30 border-t-white" />
-              Connecting to Google...
+
+              Connecting to
+              Google...
             </>
           ) : (
             <>
               <span className="text-xl font-bold text-blue-400">
                 G
               </span>
-              Continue with Google
+
+              Continue with
+              Google
             </>
           )}
         </button>
 
         <p className="mt-8 text-center text-gray-400">
-          Don&apos;t have an account?{" "}
+          Don&apos;t have an
+          account?{" "}
 
           <Link
             href="/signup"

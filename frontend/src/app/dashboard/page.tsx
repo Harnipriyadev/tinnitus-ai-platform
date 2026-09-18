@@ -30,6 +30,7 @@ import {
   Sparkles,
   Stethoscope,
   UserRound,
+  UsersRound,
 } from "lucide-react";
 
 import {
@@ -43,6 +44,11 @@ import {
 } from "recharts";
 
 import ChatBot from "../components/chatbot/ChatBot";
+
+import {
+  authenticatedFetch,
+  logoutUser,
+} from "../../../lib/authService";
 
 type Assessment = {
   _id: string;
@@ -63,6 +69,12 @@ type Assessment = {
   createdAt: string;
 };
 
+type UserRole =
+  | "patient"
+  | "caretaker"
+  | "doctor"
+  | "admin";
+
 type DashboardData = {
   success: boolean;
 
@@ -70,6 +82,7 @@ type DashboardData = {
     _id: string;
     fullName: string;
     email: string;
+    role: UserRole;
   };
 
   latestAssessment: Assessment | null;
@@ -142,31 +155,39 @@ export default function DashboardPage() {
     useState<number[]>([]);
 
   useEffect(() => {
+    const controller = new AbortController();
+
     const loadDashboard = async () => {
-      const token = localStorage.getItem("token");
-
-      if (!token) {
-        router.replace("/login");
-        return;
-      }
-
       try {
-        const response = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL}/api/assessment/dashboard`,
+        const apiUrl =
+          process.env.NEXT_PUBLIC_API_URL?.replace(
+            /\/+$/,
+            ""
+          );
+
+        if (!apiUrl) {
+          throw new Error(
+            "Backend API URL is not configured"
+          );
+        }
+
+        const response = await authenticatedFetch(
+          `${apiUrl}/api/assessment/dashboard`,
           {
-            headers: {
-              Authorization: `Bearer ${token}`,
-            },
+            method: "GET",
             cache: "no-store",
+            signal: controller.signal,
           }
         );
 
         const data = await response.json();
 
         if (!response.ok) {
-          if (response.status === 401) {
-            localStorage.removeItem("token");
-            localStorage.removeItem("user");
+          if (
+            response.status === 401 ||
+            response.status === 403
+          ) {
+            await logoutUser();
 
             router.replace("/login");
             return;
@@ -179,6 +200,21 @@ export default function DashboardPage() {
 
         setDashboardData(data);
       } catch (error) {
+        if (
+          error instanceof DOMException &&
+          error.name === "AbortError"
+        ) {
+          return;
+        }
+
+        if (
+          error instanceof Error &&
+          error.message === "You are not authenticated"
+        ) {
+          router.replace("/login");
+          return;
+        }
+
         console.error("Dashboard error:", error);
 
         setError(
@@ -187,11 +223,17 @@ export default function DashboardPage() {
             : "Unable to load dashboard"
         );
       } finally {
-        setLoading(false);
+        if (!controller.signal.aborted) {
+          setLoading(false);
+        }
       }
     };
 
     loadDashboard();
+
+    return () => {
+      controller.abort();
+    };
   }, [router]);
 
   const assessments = useMemo(
@@ -298,12 +340,13 @@ export default function DashboardPage() {
     );
   };
 
-  const handleLogout = () => {
-    localStorage.removeItem("token");
-    localStorage.removeItem("user");
-    localStorage.removeItem("prediction");
-
-    router.replace("/login");
+  const handleLogout = async () => {
+    try {
+      await logoutUser();
+    } finally {
+      localStorage.removeItem("prediction");
+      router.replace("/login");
+    }
   };
 
   if (loading) {
@@ -378,6 +421,23 @@ export default function DashboardPage() {
                 href="/assessment"
                 icon={<ClipboardList size={19} />}
                 label="New Assessment"
+              />
+
+              <SidebarItem
+                href="/consultation"
+                icon={<Stethoscope size={19} />}
+                label="Doctor Consultation"
+              />
+              <SidebarItem
+                href="/appointments"
+                icon={<CalendarDays size={19} />}
+                label="My Appointments"
+              />
+
+              <SidebarItem
+                href="/caretakers"
+                icon={<UsersRound size={19} />}
+                label="Caretaker Access"
               />
 
               <SidebarItem
@@ -491,13 +551,23 @@ export default function DashboardPage() {
                 </p>
               </div>
 
-              <Link
-                href="/assessment"
-                className="inline-flex w-fit items-center gap-2 rounded-xl bg-[#07111f] px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-800"
-              >
-                <Plus size={18} />
-                New Assessment
-              </Link>
+              <div className="flex flex-wrap gap-3">
+                <Link
+                  href="/consultation"
+                  className="inline-flex w-fit items-center gap-2 rounded-xl bg-cyan-500 px-5 py-3 text-sm font-semibold text-slate-950 transition hover:bg-cyan-400"
+                >
+                  <Stethoscope size={18} />
+                  Doctor Consultation
+                </Link>
+
+                <Link
+                  href="/assessment"
+                  className="inline-flex w-fit items-center gap-2 rounded-xl bg-[#07111f] px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-800"
+                >
+                  <Plus size={18} />
+                  New Assessment
+                </Link>
+              </div>
             </section>
 
             {!latestAssessment && (
