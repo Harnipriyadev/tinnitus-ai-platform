@@ -4,10 +4,8 @@ import {
   useEffect,
   useState,
 } from "react";
-
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
-
 import {
   ArrowRight,
   Brain,
@@ -18,15 +16,19 @@ import {
   authenticatedFetch,
   logoutUser,
 } from "../../../lib/authService";
+import {
+  welcomeTranslations,
+} from "../../../lib/welcomeTranslations";
+import {
+  useLanguage,
+} from "../context/LanguageContext";
 
 type DashboardResponse = {
   success?: boolean;
   message?: string;
-
   user?: {
     fullName?: string;
   };
-
   latestAssessment?: {
     _id: string;
   } | null;
@@ -34,11 +36,18 @@ type DashboardResponse = {
 
 export default function WelcomePage() {
   const router = useRouter();
+  const { language } =
+    useLanguage();
+
+  const text =
+    welcomeTranslations[language];
 
   const [
-    userName,
-    setUserName,
-  ] = useState("User");
+  userName,
+  setUserName,
+] = useState<string>(
+  text.defaultUser
+);
 
   const [
     checkingAccount,
@@ -52,124 +61,115 @@ export default function WelcomePage() {
     const controller =
       new AbortController();
 
-    const checkUser =
-      async () => {
-        try {
-          const apiUrl =
-            process.env
-              .NEXT_PUBLIC_API_URL
-              ?.replace(
-                /\/+$/,
-                ""
-              );
+    const checkUser = async () => {
+      setCheckingAccount(true);
+      setError("");
 
-          if (!apiUrl) {
-            throw new Error(
-              "Backend API URL is not configured"
-            );
-          }
-
-          const response =
-            await authenticatedFetch(
-              `${apiUrl}/api/assessment/dashboard`,
-              {
-                method: "GET",
-                cache: "no-store",
-                signal:
-                  controller.signal,
-              }
+      try {
+        const apiUrl =
+          process.env
+            .NEXT_PUBLIC_API_URL
+            ?.replace(
+              /\/+$/,
+              ""
             );
 
-          const data: DashboardResponse =
-            await response.json();
-
-          if (
-            response.status === 401 ||
-            response.status === 403
-          ) {
-            await logoutUser();
-
-            router.replace(
-              "/login"
-            );
-
-            return;
-          }
-
-          if (!response.ok) {
-            throw new Error(
-              data.message ||
-                "Unable to check your account"
-            );
-          }
-
-          if (
-            data.user?.fullName
-          ) {
-            setUserName(
-              data.user.fullName
-            );
-          }
-
-          if (
-            data.latestAssessment
-          ) {
-            router.replace(
-              "/dashboard"
-            );
-
-            return;
-          }
-        } catch (error) {
-          if (
-            error instanceof
-              DOMException &&
-            error.name ===
-              "AbortError"
-          ) {
-            return;
-          }
-
-          if (
-            error instanceof Error &&
-            error.message ===
-              "You are not authenticated"
-          ) {
-            router.replace(
-              "/login"
-            );
-
-            return;
-          }
-
-          console.error(
-            "Unable to check assessment status:",
-            error
+        if (!apiUrl) {
+          throw new Error(
+            text.apiNotConfigured
           );
-
-          setError(
-            error instanceof Error
-              ? error.message
-              : "Unable to check your account"
-          );
-        } finally {
-          if (
-            !controller.signal
-              .aborted
-          ) {
-            setCheckingAccount(
-              false
-            );
-          }
         }
-      };
 
-    checkUser();
+        const response =
+          await authenticatedFetch(
+            `${apiUrl}/api/assessment/dashboard`,
+            {
+              method: "GET",
+              cache: "no-store",
+              signal:
+                controller.signal,
+            }
+          );
+
+        const data:
+          DashboardResponse =
+          await response.json();
+
+        if (
+          response.status === 401 ||
+          response.status === 403
+        ) {
+          await logoutUser();
+          router.replace("/login");
+          return;
+        }
+
+        if (!response.ok) {
+          throw new Error(
+            data.message ||
+              text.unableToCheck
+          );
+        }
+
+        setUserName(
+          data.user?.fullName ||
+            text.defaultUser
+        );
+
+        if (data.latestAssessment) {
+          router.replace(
+            "/dashboard"
+          );
+          return;
+        }
+      } catch (caughtError) {
+        if (
+          caughtError instanceof
+            DOMException &&
+          caughtError.name ===
+            "AbortError"
+        ) {
+          return;
+        }
+
+        if (
+          caughtError instanceof Error &&
+          (caughtError.message ===
+            "You are not authenticated" ||
+            caughtError.message.includes(
+              "session has ended"
+            ))
+        ) {
+          await logoutUser();
+          router.replace("/login");
+          return;
+        }
+
+        console.error(
+          "Unable to check assessment status:",
+          caughtError
+        );
+
+        setError(
+          caughtError instanceof Error
+            ? caughtError.message
+            : text.unableToCheck
+        );
+      } finally {
+        if (
+          !controller.signal.aborted
+        ) {
+          setCheckingAccount(false);
+        }
+      }
+    };
+
+    void checkUser();
 
     return () => {
       controller.abort();
     };
-  }, [router]);
+  }, [router, text]);
 
   if (checkingAccount) {
     return (
@@ -180,8 +180,7 @@ export default function WelcomePage() {
         />
 
         <p className="text-cyan-300">
-          Checking your
-          account...
+          {text.checkingAccount}
         </p>
       </main>
     );
@@ -201,7 +200,7 @@ export default function WelcomePage() {
           }
           className="rounded-xl bg-cyan-400 px-5 py-3 font-semibold text-slate-950"
         >
-          Try Again
+          {text.tryAgain}
         </button>
       </main>
     );
@@ -212,9 +211,7 @@ export default function WelcomePage() {
       <div className="absolute h-[700px] w-[700px] rounded-full bg-cyan-500/10 blur-[150px]" />
 
       <motion.div
-        animate={{
-          rotate: 360,
-        }}
+        animate={{ rotate: 360 }}
         transition={{
           duration: 25,
           repeat: Infinity,
@@ -226,11 +223,7 @@ export default function WelcomePage() {
       <div className="relative z-10 w-full max-w-4xl rounded-3xl border border-cyan-500/20 bg-white/5 p-8 text-center backdrop-blur-2xl sm:p-12">
         <motion.div
           animate={{
-            scale: [
-              1,
-              1.08,
-              1,
-            ],
+            scale: [1, 1.08, 1],
           }}
           transition={{
             duration: 3,
@@ -245,37 +238,47 @@ export default function WelcomePage() {
         </motion.div>
 
         <h1 className="text-4xl font-bold text-white sm:text-5xl">
-          Welcome,{" "}
-
+          {text.welcome},{" "}
           <span className="text-cyan-400">
             {userName}
           </span>
         </h1>
 
         <p className="mx-auto mt-8 max-w-3xl text-lg leading-9 text-gray-300">
-          Complete your first
-          tinnitus assessment to
-          receive an AI-generated
-          report, personalized
-          wellness guidance, and
-          access to your
-          hearing-care dashboard.
+          {text.description}
         </p>
 
         <div className="mt-12 grid gap-6 md:grid-cols-3">
           <WelcomeCard
-            title="Assessment"
-            description="Record your tinnitus symptoms and hearing information."
+            title={
+              text.cards.assessment
+                .title
+            }
+            description={
+              text.cards.assessment
+                .description
+            }
           />
 
           <WelcomeCard
-            title="AI Report"
-            description="Receive a personalized analysis based on your answers."
+            title={
+              text.cards.report.title
+            }
+            description={
+              text.cards.report
+                .description
+            }
           />
 
           <WelcomeCard
-            title="AI Assistant"
-            description="Get report explanations and supportive care guidance."
+            title={
+              text.cards.assistant
+                .title
+            }
+            description={
+              text.cards.assistant
+                .description
+            }
           />
         </div>
 
@@ -288,19 +291,12 @@ export default function WelcomePage() {
           }
           className="mx-auto mt-12 flex items-center gap-3 rounded-xl bg-cyan-500 px-10 py-4 font-semibold text-black transition hover:scale-105 hover:bg-cyan-400"
         >
-          Start First Assessment
-
-          <ArrowRight
-            size={22}
-          />
+          {text.startAssessment}
+          <ArrowRight size={22} />
         </button>
 
         <p className="mx-auto mt-7 max-w-2xl text-xs leading-5 text-slate-500">
-          This platform provides
-          AI-generated support and
-          does not replace
-          professional medical
-          diagnosis or treatment.
+          {text.disclaimer}
         </p>
       </div>
     </main>

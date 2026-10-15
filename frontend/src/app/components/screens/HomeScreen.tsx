@@ -1,7 +1,13 @@
 import Hero from "../hero/Hero";
 
+import type {
+  HomeScreenName,
+} from "../Navbar";
+
 type HomeScreenProps = {
-  onNavigate: (screen: string) => void;
+  onNavigate: (
+    screen: HomeScreenName
+  ) => void;
 };
 
 export default function HomeScreen({
@@ -9,7 +15,11 @@ export default function HomeScreen({
 }: HomeScreenProps) {
   return (
     <main className="w-full">
-      <Hero onNavigate={onNavigate} />
+      <Hero
+        onNavigate={
+          onNavigate
+        }
+      />
     </main>
   );
 }

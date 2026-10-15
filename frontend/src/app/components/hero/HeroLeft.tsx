@@ -1,116 +1,164 @@
 "use client";
 
 import Link from "next/link";
-import { BrainCircuit, ShieldCheck, Activity } from "lucide-react";
+
+import {
+  Activity,
+  BrainCircuit,
+  ShieldCheck,
+} from "lucide-react";
+
+import {
+  useLanguage,
+} from "../../context/LanguageContext";
+
+import {
+  getSiteTranslation,
+} from "../../../../lib/siteTranslations";
+
+import type {
+  HomeScreenName,
+} from "../Navbar";
 
 type HeroLeftProps = {
-  onNavigate?: (screen: string) => void;
+  onNavigate?: (
+    screen: HomeScreenName
+  ) => void;
 };
 
 export default function HeroLeft({
   onNavigate,
 }: HeroLeftProps) {
-  return (
-    <div className="flex flex-col justify-center h-full">
+  const {
+    language,
+  } = useLanguage();
 
-      {/* Badge */}
+  const translation =
+    getSiteTranslation(
+      language
+    );
+
+  const content =
+    translation.home;
+
+  return (
+    <div className="flex h-full flex-col justify-center">
       <div className="inline-flex w-fit items-center rounded-full border border-cyan-400/20 bg-cyan-500/10 px-5 py-2">
         <span className="text-sm font-medium text-cyan-300">
-          AI Powered Healthcare
+          {content.badge}
         </span>
       </div>
 
-      {/* Heading */}
-      <h1 className="mt-8 text-6xl font-extrabold leading-tight text-white">
-        AI
+      <h1 className="mt-8 text-5xl font-extrabold leading-tight text-white sm:text-6xl">
+        {
+          content.headingPrimary
+        }
+
         <br />
+
         <span className="text-cyan-400">
-          TINNITUS
+          {
+            content.headingSecondary
+          }
         </span>
       </h1>
 
-      {/* Description */}
       <p className="mt-6 max-w-lg text-lg leading-8 text-gray-300">
-        Experience the future of hearing healthcare with intelligent
-        tinnitus assessment, AI-powered diagnosis, and personalized
-        therapy recommendations.
+        {content.description}
       </p>
 
-      {/* Buttons */}
-      <div className="mt-10 flex gap-5">
-
+      <div className="mt-10 flex flex-col gap-4 sm:flex-row sm:gap-5">
         <Link
           href="/assessment"
-          className="rounded-xl bg-cyan-500 px-7 py-4 font-semibold text-black transition-all duration-300 hover:scale-105 hover:bg-cyan-400"
+          className="rounded-xl bg-cyan-500 px-7 py-4 text-center font-semibold text-black transition-all duration-300 hover:scale-105 hover:bg-cyan-400"
         >
-          Start Assessment
+          {
+            content.startAssessment
+          }
         </Link>
 
         <button
-          onClick={() => onNavigate?.("features")}
-          className="rounded-xl border border-cyan-500 px-7 py-4 text-cyan-300 transition-all duration-300 hover:bg-cyan-500/10 hover:border-cyan-400"
+          type="button"
+          onClick={() =>
+            onNavigate?.(
+              "features"
+            )
+          }
+          className="rounded-xl border border-cyan-500 px-7 py-4 text-cyan-300 transition-all duration-300 hover:border-cyan-400 hover:bg-cyan-500/10"
         >
-          View Features
+          {
+            content.viewFeatures
+          }
         </button>
-
       </div>
 
-      {/* Features */}
       <div className="mt-12 grid gap-5">
-
         <div className="flex items-center gap-4 rounded-2xl border border-white/10 bg-white/5 p-5 backdrop-blur-xl">
           <BrainCircuit
-            className="text-cyan-400"
+            className="shrink-0 text-cyan-400"
             size={34}
+            aria-hidden="true"
           />
 
           <div>
             <h3 className="font-semibold text-white">
-              AI Diagnosis
+              {
+                content.assessmentTitle
+              }
             </h3>
 
-            <p className="text-sm text-gray-400">
-              Smart tinnitus prediction using AI.
+            <p className="text-sm leading-5 text-gray-400">
+              {
+                content.assessmentDescription
+              }
             </p>
           </div>
         </div>
 
         <div className="flex items-center gap-4 rounded-2xl border border-white/10 bg-white/5 p-5 backdrop-blur-xl">
           <Activity
-            className="text-cyan-400"
+            className="shrink-0 text-cyan-400"
             size={34}
+            aria-hidden="true"
           />
 
           <div>
             <h3 className="font-semibold text-white">
-              Personalized Therapy
+              {
+                content.therapyTitle
+              }
             </h3>
 
-            <p className="text-sm text-gray-400">
-              Tailored recommendations for each patient.
+            <p className="text-sm leading-5 text-gray-400">
+              {
+                content.therapyDescription
+              }
             </p>
           </div>
         </div>
 
         <div className="flex items-center gap-4 rounded-2xl border border-white/10 bg-white/5 p-5 backdrop-blur-xl">
           <ShieldCheck
-            className="text-cyan-400"
+            className="shrink-0 text-cyan-400"
             size={34}
+            aria-hidden="true"
           />
 
           <div>
             <h3 className="font-semibold text-white">
-              Secure Reports
+              {
+                content.securityTitle
+              }
             </h3>
 
-            <p className="text-sm text-gray-400">
-              Your assessment data is encrypted and safe.
+            <p className="text-sm leading-5 text-gray-400">
+              {
+                content.securityDescription
+              }
             </p>
           </div>
         </div>
-
       </div>
-
     </div>
   );
 }

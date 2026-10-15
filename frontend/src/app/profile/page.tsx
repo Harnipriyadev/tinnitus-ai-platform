@@ -5,10 +5,8 @@ import {
   useState,
   type ReactNode,
 } from "react";
-
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-
 import {
   ArrowLeft,
   BrainCircuit,
@@ -23,13 +21,26 @@ import {
   authenticatedFetch,
   logoutUser,
 } from "../../../lib/authService";
+import {
+  profileTranslations,
+} from "../../../lib/profileTranslations";
+import {
+  useLanguage,
+} from "../context/LanguageContext";
+
+type UserRole =
+  | "patient"
+  | "caretaker"
+  | "doctor"
+  | "admin"
+  | "user";
 
 type UserData = {
   _id: string;
   fullName: string;
   email: string;
   profilePicture?: string;
-  role?: "user" | "admin";
+  role?: UserRole;
   emailVerified?: boolean;
   accountStatus?: string;
 };
@@ -42,6 +53,11 @@ type ProfileResponse = {
 
 export default function ProfilePage() {
   const router = useRouter();
+  const { language } =
+    useLanguage();
+
+  const text =
+    profileTranslations[language];
 
   const [user, setUser] =
     useState<UserData | null>(
@@ -60,6 +76,9 @@ export default function ProfilePage() {
 
     const loadProfile =
       async () => {
+        setLoading(true);
+        setError("");
+
         try {
           const apiUrl =
             process.env
@@ -71,7 +90,7 @@ export default function ProfilePage() {
 
           if (!apiUrl) {
             throw new Error(
-              "Backend API URL is not configured"
+              text.apiNotConfigured
             );
           }
 
@@ -86,7 +105,8 @@ export default function ProfilePage() {
               }
             );
 
-          const data: ProfileResponse =
+          const data:
+            ProfileResponse =
             await response.json();
 
           if (!response.ok) {
@@ -97,23 +117,21 @@ export default function ProfilePage() {
                 403
             ) {
               await logoutUser();
-
               router.replace(
                 "/login"
               );
-
               return;
             }
 
             throw new Error(
               data.message ||
-                "Unable to load profile"
+                text.unableToLoad
             );
           }
 
           if (!data.user) {
             throw new Error(
-              "Profile information was not received"
+              text.profileNotReceived
             );
           }
 
@@ -125,37 +143,42 @@ export default function ProfilePage() {
               data.user
             )
           );
-        } catch (error) {
+        } catch (caughtError) {
           if (
-            error instanceof
+            caughtError instanceof
               DOMException &&
-            error.name ===
+            caughtError.name ===
               "AbortError"
           ) {
             return;
           }
 
           if (
-            error instanceof Error &&
-            error.message ===
-              "You are not authenticated"
+            caughtError instanceof
+              Error &&
+            (caughtError.message ===
+              "You are not authenticated" ||
+              caughtError.message.includes(
+                "session has ended"
+              ))
           ) {
+            await logoutUser();
             router.replace(
               "/login"
             );
-
             return;
           }
 
           console.error(
             "Profile loading error:",
-            error
+            caughtError
           );
 
           setError(
-            error instanceof Error
-              ? error.message
-              : "Unable to load profile"
+            caughtError instanceof
+              Error
+              ? caughtError.message
+              : text.unableToLoad
           );
         } finally {
           if (
@@ -167,12 +190,12 @@ export default function ProfilePage() {
         }
       };
 
-    loadProfile();
+    void loadProfile();
 
     return () => {
       controller.abort();
     };
-  }, [router]);
+  }, [router, text]);
 
   const handleLogout =
     async () => {
@@ -183,7 +206,9 @@ export default function ProfilePage() {
           "prediction"
         );
 
-        router.replace("/login");
+        router.replace(
+          "/login"
+        );
       }
     };
 
@@ -191,7 +216,7 @@ export default function ProfilePage() {
     return (
       <main className="flex min-h-screen items-center justify-center bg-[#050d18] text-white">
         <p className="animate-pulse text-cyan-300">
-          Loading profile...
+          {text.loading}
         </p>
       </main>
     );
@@ -211,11 +236,17 @@ export default function ProfilePage() {
           }
           className="rounded-xl bg-cyan-400 px-5 py-3 font-semibold text-slate-950"
         >
-          Try Again
+          {text.tryAgain}
         </button>
       </main>
     );
   }
+
+  const role =
+    user?.role &&
+    user.role in text.roles
+      ? user.role
+      : "patient";
 
   return (
     <main className="relative min-h-screen overflow-hidden bg-[#050d18] px-5 py-10 text-white">
@@ -227,20 +258,19 @@ export default function ProfilePage() {
             href="/dashboard"
             className="flex items-center gap-2 text-slate-400 transition hover:text-cyan-300"
           >
-            <ArrowLeft
-              size={19}
-            />
-
-            Back to Dashboard
+            <ArrowLeft size={19} />
+            {text.backToDashboard}
           </Link>
 
           <button
             type="button"
-            onClick={handleLogout}
+            onClick={() =>
+              void handleLogout()
+            }
             className="flex items-center gap-2 rounded-xl border border-red-400/20 bg-red-400/10 px-4 py-2.5 text-sm text-red-300 transition hover:bg-red-400/15"
           >
             <LogOut size={18} />
-            Log out
+            {text.logout}
           </button>
         </header>
 
@@ -267,18 +297,16 @@ export default function ProfilePage() {
 
               <div>
                 <p className="text-sm text-cyan-300">
-                  Patient Profile
+                  {text.profileLabel}
                 </p>
 
                 <h1 className="mt-1 text-3xl font-bold">
                   {user?.fullName ||
-                    "User"}
+                    text.defaultUser}
                 </h1>
 
                 <p className="mt-2 text-slate-400">
-                  Manage your AI
-                  tinnitus care
-                  account.
+                  {text.description}
                 </p>
               </div>
             </div>
@@ -291,10 +319,10 @@ export default function ProfilePage() {
                   size={21}
                 />
               }
-              label="Full name"
+              label={text.fullName}
               value={
                 user?.fullName ||
-                "Not available"
+                text.notAvailable
               }
             />
 
@@ -302,10 +330,12 @@ export default function ProfilePage() {
               icon={
                 <Mail size={21} />
               }
-              label="Email address"
+              label={
+                text.emailAddress
+              }
               value={
                 user?.email ||
-                "Not available"
+                text.notAvailable
               }
             />
 
@@ -315,12 +345,14 @@ export default function ProfilePage() {
                   size={21}
                 />
               }
-              label="Account status"
+              label={
+                text.accountStatus
+              }
               value={
                 user?.accountStatus ===
                 "active"
-                  ? "Active and protected"
-                  : "Protected account"
+                  ? text.activeProtected
+                  : text.protectedAccount
               }
             />
 
@@ -330,11 +362,13 @@ export default function ProfilePage() {
                   size={21}
                 />
               }
-              label="Email verification"
+              label={
+                text.emailVerification
+              }
               value={
                 user?.emailVerified
-                  ? "Verified"
-                  : "Verification pending"
+                  ? text.verified
+                  : text.verificationPending
               }
             />
 
@@ -344,8 +378,12 @@ export default function ProfilePage() {
                   size={21}
                 />
               }
-              label="Care platform"
-              value="AI Tinnitus Smart Hearing Care"
+              label={
+                text.carePlatform
+              }
+              value={
+                text.platformName
+              }
             />
 
             <ProfileField
@@ -354,12 +392,11 @@ export default function ProfilePage() {
                   size={21}
                 />
               }
-              label="Account role"
+              label={
+                text.accountRole
+              }
               value={
-                user?.role ===
-                "admin"
-                  ? "Administrator"
-                  : "Patient"
+                text.roles[role]
               }
             />
           </div>
@@ -372,17 +409,13 @@ export default function ProfilePage() {
               <LayoutDashboard
                 size={19}
               />
-
-              Open Dashboard
+              {text.openDashboard}
             </Link>
           </div>
         </section>
 
         <p className="mt-6 text-center text-xs text-slate-500">
-          Your profile and
-          assessment data are
-          securely associated with
-          your authenticated account.
+          {text.securityNote}
         </p>
       </div>
     </main>

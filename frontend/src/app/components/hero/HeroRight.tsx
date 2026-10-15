@@ -1,11 +1,15 @@
 "use client";
 
 import {
-  FormEvent,
   useState,
 } from "react";
 
+import type {
+  FormEvent,
+} from "react";
+
 import Link from "next/link";
+
 import {
   useRouter,
 } from "next/navigation";
@@ -23,8 +27,19 @@ import {
   getAuthenticationErrorMessage,
   loginWithEmail,
   loginWithGoogle,
-  type UserRole,
 } from "../../../../lib/authService";
+
+import type {
+  UserRole,
+} from "../../../../lib/authService";
+
+import {
+  getAuthTranslation,
+} from "../../../../lib/authTranslations";
+
+import {
+  useLanguage,
+} from "../../context/LanguageContext";
 
 const ROLE_DASHBOARD: Record<
   UserRole,
@@ -47,6 +62,18 @@ export default function HeroRight() {
   const router =
     useRouter();
 
+  const {
+    language,
+  } = useLanguage();
+
+  const translation =
+    getAuthTranslation(
+      language
+    );
+
+  const content =
+    translation.login;
+
   const [
     email,
     setEmail,
@@ -68,8 +95,8 @@ export default function HeroRight() {
   ] = useState(false);
 
   const [
-    error,
-    setError,
+    errorMessage,
+    setErrorMessage,
   ] = useState("");
 
   const authenticationBusy =
@@ -79,12 +106,31 @@ export default function HeroRight() {
   const redirectByRole = (
     role: UserRole
   ) => {
-    const destination =
-      ROLE_DASHBOARD[role];
-
     router.replace(
-      destination
+      ROLE_DASHBOARD[
+        role
+      ]
     );
+  };
+
+  const getLocalizedError = (
+    error: unknown,
+    fallbackMessage: string
+  ) => {
+    /*
+     * Preserve detailed authentication messages
+     * in English. Other languages receive a
+     * professional translated fallback.
+     */
+    if (
+      language === "en"
+    ) {
+      return getAuthenticationErrorMessage(
+        error
+      );
+    }
+
+    return fallbackMessage;
   };
 
   const handleLogin = async (
@@ -93,14 +139,14 @@ export default function HeroRight() {
   ) => {
     event.preventDefault();
 
-    setError("");
+    setErrorMessage("");
 
     if (
       !email.trim() ||
       !password
     ) {
-      setError(
-        "Please enter your email and password."
+      setErrorMessage(
+        content.requiredFields
       );
 
       return;
@@ -111,9 +157,13 @@ export default function HeroRight() {
     try {
       const user =
         await loginWithEmail({
-          email,
+          email:
+            email.trim(),
+
           password,
-          remember: false,
+
+          remember:
+            false,
         });
 
       redirectByRole(
@@ -125,9 +175,10 @@ export default function HeroRight() {
         error
       );
 
-      setError(
-        getAuthenticationErrorMessage(
-          error
+      setErrorMessage(
+        getLocalizedError(
+          error,
+          content.loginFailed
         )
       );
     } finally {
@@ -137,7 +188,7 @@ export default function HeroRight() {
 
   const handleGoogleLogin =
     async () => {
-      setError("");
+      setErrorMessage("");
 
       setGoogleLoading(
         true
@@ -158,9 +209,11 @@ export default function HeroRight() {
           error
         );
 
-        setError(
-          getAuthenticationErrorMessage(
-            error
+        setErrorMessage(
+          getLocalizedError(
+            error,
+            content
+              .googleLoginFailed
           )
         );
       } finally {
@@ -187,15 +240,14 @@ export default function HeroRight() {
       }}
       className="flex items-center justify-center"
     >
-      <div className="w-[380px] rounded-3xl border border-cyan-500/20 bg-white/5 p-8 shadow-[0_0_40px_rgba(6,182,212,0.15)] backdrop-blur-2xl">
+      <div className="w-full max-w-[380px] rounded-3xl border border-cyan-500/20 bg-white/5 p-6 shadow-[0_0_40px_rgba(6,182,212,0.15)] backdrop-blur-2xl sm:p-8">
         <div className="mb-8 text-center">
           <h2 className="text-3xl font-bold text-white">
-            Welcome Back
+            {content.title}
           </h2>
 
           <p className="mt-2 text-gray-400">
-            Sign in to your AI
-            Tinnitus account
+            {content.subtitle}
           </p>
         </div>
 
@@ -207,6 +259,7 @@ export default function HeroRight() {
           <div className="relative mb-5">
             <Mail
               size={20}
+              aria-hidden="true"
               className="absolute left-4 top-1/2 -translate-y-1/2 text-cyan-400"
             />
 
@@ -221,8 +274,12 @@ export default function HeroRight() {
                     .value
                 )
               }
-              placeholder="Email Address"
-              aria-label="Email address"
+              placeholder={
+                content.email
+              }
+              aria-label={
+                content.email
+              }
               autoComplete="email"
               inputMode="email"
               maxLength={254}
@@ -237,6 +294,7 @@ export default function HeroRight() {
           <div className="relative mb-3">
             <Lock
               size={20}
+              aria-hidden="true"
               className="absolute left-4 top-1/2 -translate-y-1/2 text-cyan-400"
             />
 
@@ -253,8 +311,12 @@ export default function HeroRight() {
                     .value
                 )
               }
-              placeholder="Password"
-              aria-label="Password"
+              placeholder={
+                content.password
+              }
+              aria-label={
+                content.password
+              }
               autoComplete="current-password"
               maxLength={128}
               required
@@ -270,16 +332,18 @@ export default function HeroRight() {
               href="/forgot-password"
               className="text-sm text-cyan-300 transition hover:text-cyan-200"
             >
-              Forgot Password?
+              {
+                content.forgotPassword
+              }
             </Link>
           </div>
 
-          {error && (
+          {errorMessage && (
             <div
               role="alert"
               className="mb-5 rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-300"
             >
-              {error}
+              {errorMessage}
             </div>
           )}
 
@@ -294,11 +358,12 @@ export default function HeroRight() {
               <span className="flex items-center gap-3">
                 <span className="h-5 w-5 animate-spin rounded-full border-2 border-black/30 border-t-black" />
 
-                Securing
-                Account...
+                {
+                  content.loggingIn
+                }
               </span>
             ) : (
-              "Login"
+              content.login
             )}
           </button>
         </form>
@@ -307,7 +372,7 @@ export default function HeroRight() {
           <div className="h-px flex-1 bg-white/10" />
 
           <span className="px-4 text-sm text-gray-400">
-            OR
+            {content.or}
           </span>
 
           <div className="h-px flex-1 bg-white/10" />
@@ -327,8 +392,9 @@ export default function HeroRight() {
             <>
               <span className="h-5 w-5 animate-spin rounded-full border-2 border-white/30 border-t-white" />
 
-              Connecting to
-              Google...
+              {
+                content.connectingGoogle
+              }
             </>
           ) : (
             <>
@@ -336,21 +402,21 @@ export default function HeroRight() {
                 G
               </span>
 
-              Continue with
-              Google
+              {
+                content.continueWithGoogle
+              }
             </>
           )}
         </button>
 
         <p className="mt-8 text-center text-gray-400">
-          Don&apos;t have an
-          account?{" "}
+          {content.noAccount}{" "}
 
           <Link
             href="/signup"
             className="font-semibold text-cyan-400 transition hover:text-cyan-300"
           >
-            Sign Up
+            {content.signUp}
           </Link>
         </p>
       </div>

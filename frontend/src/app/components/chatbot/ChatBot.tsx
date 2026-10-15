@@ -1,10 +1,10 @@
 "use client";
 
 import {
-  FormEvent,
   useEffect,
   useRef,
   useState,
+  type FormEvent,
 } from "react";
 
 import {
@@ -21,6 +21,14 @@ import {
   authenticatedFetch,
   logoutUser,
 } from "../../../../lib/authService";
+
+import {
+  chatbotTranslations,
+} from "../../../../lib/chatbotTranslations";
+
+import {
+  useLanguage,
+} from "../../context/LanguageContext";
 
 type Message = {
   id: string;
@@ -39,45 +47,88 @@ function createMessage(
   text: string
 ): Message {
   return {
-    id:
-      `${Date.now()}-${Math.random()
-        .toString(36)
-        .slice(2)}`,
-
+    id: `${Date.now()}-${Math.random()
+      .toString(36)
+      .slice(2)}`,
     sender,
     text,
   };
 }
 
 export default function ChatBot() {
-  const [open, setOpen] =
-    useState(false);
+  const {
+    language,
+  } = useLanguage();
 
-  const [input, setInput] =
-    useState("");
+  const text =
+    chatbotTranslations[
+      language
+    ];
 
-  const [loading, setLoading] =
-    useState(false);
+  const [
+    open,
+    setOpen,
+  ] = useState(false);
 
-  const [messages, setMessages] =
-    useState<Message[]>([
-      {
-        id: "welcome-message",
-        sender: "bot",
+  const [
+    input,
+    setInput,
+  ] = useState("");
 
-        text:
-          "Hello! I’m your personal tinnitus care-support assistant. " +
-          "I can explain your latest report and provide general wellness guidance.",
-      },
-    ]);
+  const [
+    loading,
+    setLoading,
+  ] = useState(false);
+
+  const [
+    messages,
+    setMessages,
+  ] = useState<Message[]>([
+    {
+      id: "welcome-message",
+      sender: "bot",
+      text: text.welcome,
+    },
+  ]);
 
   const messagesEndRef =
-    useRef<HTMLDivElement>(null);
+    useRef<HTMLDivElement>(
+      null
+    );
 
+  /*
+   * Translate the chatbot welcome message
+   * whenever the selected language changes.
+   */
   useEffect(() => {
-    const openAssistant = () => {
-      setOpen(true);
-    };
+    setMessages(
+      (previous) =>
+        previous.map(
+          (message) =>
+            message.id ===
+            "welcome-message"
+              ? {
+                  ...message,
+
+                  text:
+                    chatbotTranslations[
+                      language
+                    ].welcome,
+                }
+              : message
+        )
+    );
+  }, [language]);
+
+  /*
+   * Allows other components to open the
+   * chatbot using a browser event.
+   */
+  useEffect(() => {
+    const openAssistant =
+      () => {
+        setOpen(true);
+      };
 
     window.addEventListener(
       "open-ai-assistant",
@@ -92,6 +143,10 @@ export default function ChatBot() {
     };
   }, []);
 
+  /*
+   * Automatically scroll to the newest
+   * message when the conversation changes.
+   */
   useEffect(() => {
     if (open) {
       messagesEndRef.current
@@ -105,6 +160,21 @@ export default function ChatBot() {
     open,
   ]);
 
+  const addBotMessage = (
+    message: string
+  ) => {
+    setMessages(
+      (previous) => [
+        ...previous,
+
+        createMessage(
+          "bot",
+          message
+        ),
+      ]
+    );
+  };
+
   const sendMessage = async (
     event?:
       FormEvent<HTMLFormElement>
@@ -114,22 +184,18 @@ export default function ChatBot() {
     const question =
       input.trim();
 
-    if (!question || loading) {
+    if (
+      !question ||
+      loading
+    ) {
       return;
     }
 
     if (
       question.length > 1500
     ) {
-      setMessages(
-        (previous) => [
-          ...previous,
-
-          createMessage(
-            "bot",
-            "Please keep your message below 1,500 characters."
-          ),
-        ]
+      addBotMessage(
+        text.messageTooLong
       );
 
       return;
@@ -138,18 +204,14 @@ export default function ChatBot() {
     const apiUrl =
       process.env
         .NEXT_PUBLIC_API_URL
-        ?.replace(/\/+$/, "");
+        ?.replace(
+          /\/+$/,
+          ""
+        );
 
     if (!apiUrl) {
-      setMessages(
-        (previous) => [
-          ...previous,
-
-          createMessage(
-            "bot",
-            "The backend API is not configured."
-          ),
-        ]
+      addBotMessage(
+        text.apiNotConfigured
       );
 
       return;
@@ -183,48 +245,46 @@ export default function ChatBot() {
                 "application/json",
             },
 
-            body: JSON.stringify({
-              message: question,
-            }),
+            body:
+              JSON.stringify({
+                message:
+                  question,
+              }),
           }
         );
 
-      const data: AssistantResponse =
+      const data:
+        AssistantResponse =
         await response.json();
 
       if (!response.ok) {
         if (
-          response.status === 401 ||
-          response.status === 403
+          response.status ===
+            401 ||
+          response.status ===
+            403
         ) {
           await logoutUser();
 
           throw new Error(
-            "Your login session has expired. Please log in again."
+            text.sessionExpired
           );
         }
 
         throw new Error(
           data.message ||
-            "The AI assistant is unavailable."
+            text.assistantUnavailable
         );
       }
 
       if (!data.reply) {
         throw new Error(
-          "The AI assistant returned an empty response."
+          text.emptyResponse
         );
       }
 
-      setMessages(
-        (previous) => [
-          ...previous,
-
-          createMessage(
-            "bot",
-            data.reply || ""
-          ),
-        ]
+      addBotMessage(
+        data.reply
       );
     } catch (error) {
       console.error(
@@ -232,28 +292,45 @@ export default function ChatBot() {
         error
       );
 
-      const message =
+      /*
+       * Explicit string type prevents TypeScript
+       * from restricting this variable to only
+       * translation literal values.
+       */
+      let message: string =
+        text.unableToContact;
+
+      if (
         error instanceof Error
-          ? error.message
-          : "Unable to contact the AI assistant.";
+      ) {
+        message =
+          error.message;
+      }
 
-      setMessages(
-        (previous) => [
-          ...previous,
+      if (
+        message ===
+          "You are not authenticated" ||
+        message ===
+          "Authentication token is required"
+      ) {
+        message =
+          text.loginRequired;
+      }
 
-          createMessage(
-            "bot",
-            message ===
-              "You are not authenticated"
-              ? "Please log in before using your personal AI assistant."
-              : message
-          ),
-        ]
+      addBotMessage(
+        message
       );
     } finally {
       setLoading(false);
     }
   };
+
+  const selectQuickPrompt =
+    () => {
+      setInput(
+        text.quickPrompt
+      );
+    };
 
   return (
     <>
@@ -268,8 +345,8 @@ export default function ChatBot() {
         className="fixed bottom-6 right-6 z-[100] flex h-16 w-16 items-center justify-center rounded-full bg-cyan-400 text-slate-950 shadow-[0_0_30px_rgba(34,211,238,0.55)] transition hover:scale-110 hover:bg-cyan-300"
         aria-label={
           open
-            ? "Close AI assistant"
-            : "Open AI assistant"
+            ? text.closeAssistant
+            : text.openAssistant
         }
       >
         {open ? (
@@ -286,18 +363,18 @@ export default function ChatBot() {
           <header className="flex items-center justify-between bg-gradient-to-r from-cyan-400 to-cyan-500 p-4 text-slate-950">
             <div className="flex items-center gap-3">
               <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-black/10">
-                <Bot size={23} />
+                <Bot
+                  size={23}
+                />
               </div>
 
               <div>
                 <h2 className="font-bold">
-                  Personal AI
-                  Assistant
+                  {text.title}
                 </h2>
 
                 <p className="text-xs text-slate-800">
-                  Report-aware care
-                  support
+                  {text.subtitle}
                 </p>
               </div>
             </div>
@@ -308,7 +385,9 @@ export default function ChatBot() {
                 setOpen(false)
               }
               className="rounded-lg p-2 transition hover:bg-black/10"
-              aria-label="Close AI assistant"
+              aria-label={
+                text.closeAssistant
+              }
             >
               <X size={20} />
             </button>
@@ -321,11 +400,7 @@ export default function ChatBot() {
             />
 
             <p>
-              This assistant
-              provides supportive
-              guidance, not confirmed
-              diagnosis or emergency
-              care.
+              {text.disclaimer}
             </p>
           </div>
 
@@ -333,7 +408,9 @@ export default function ChatBot() {
             {messages.map(
               (message) => (
                 <div
-                  key={message.id}
+                  key={
+                    message.id
+                  }
                   className={`max-w-[88%] whitespace-pre-wrap rounded-2xl px-4 py-3 text-sm leading-6 ${
                     message.sender ===
                     "user"
@@ -353,8 +430,9 @@ export default function ChatBot() {
                   size={17}
                 />
 
-                Reviewing your
-                assessment...
+                {
+                  text.reviewing
+                }
               </div>
             )}
 
@@ -365,20 +443,19 @@ export default function ChatBot() {
             />
           </div>
 
-          {messages.length === 1 && (
+          {messages.length ===
+            1 && (
             <div className="border-t border-white/10 px-4 py-3">
               <button
                 type="button"
-                onClick={() =>
-                  setInput(
-                    "Explain my latest tinnitus report in simple language."
-                  )
+                onClick={
+                  selectQuickPrompt
                 }
                 className="w-full rounded-xl border border-cyan-400/20 bg-cyan-400/5 px-3 py-2 text-left text-xs leading-5 text-cyan-200 transition hover:bg-cyan-400/10"
               >
-                Explain my latest
-                report in simple
-                language
+                {
+                  text.quickPrompt
+                }
               </button>
             </div>
           )}
@@ -389,11 +466,11 @@ export default function ChatBot() {
               className="mt-0.5 shrink-0"
             />
 
-            Seek urgent medical
-            help for sudden hearing
-            loss, severe dizziness,
-            neurological symptoms,
-            or thoughts of self-harm.
+            <p>
+              {
+                text.urgentWarning
+              }
+            </p>
           </div>
 
           <form
@@ -404,13 +481,20 @@ export default function ChatBot() {
           >
             <input
               value={input}
-              onChange={(event) =>
+              onChange={(
+                event
+              ) =>
                 setInput(
-                  event.target.value
+                  event.target
+                    .value
                 )
               }
-              placeholder="Ask about your report..."
-              aria-label="Message for AI assistant"
+              placeholder={
+                text.inputPlaceholder
+              }
+              aria-label={
+                text.inputLabel
+              }
               maxLength={1500}
               disabled={loading}
               className="min-w-0 flex-1 rounded-xl border border-white/10 bg-[#122033] px-4 py-3 text-sm text-white outline-none placeholder:text-slate-500 focus:border-cyan-400/50 disabled:opacity-60"
@@ -423,9 +507,13 @@ export default function ChatBot() {
                 loading
               }
               className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-cyan-400 text-slate-950 transition hover:bg-cyan-300 disabled:cursor-not-allowed disabled:opacity-40"
-              aria-label="Send message"
+              aria-label={
+                text.sendMessage
+              }
             >
-              <Send size={18} />
+              <Send
+                size={18}
+              />
             </button>
           </form>
         </section>

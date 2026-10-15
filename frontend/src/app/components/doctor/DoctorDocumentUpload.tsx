@@ -1,11 +1,6 @@
 "use client";
 
-import {
-  useEffect,
-  useMemo,
-  useState,
-} from "react";
-
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   CheckCircle2,
   FileCheck2,
@@ -14,19 +9,25 @@ import {
   Upload,
 } from "lucide-react";
 
-import {
-  authenticatedFetch,
-} from "../../../../lib/authService";
+import { useLanguage } from "../../context/LanguageContext";
+import { doctorDocumentTranslations } from "../../../../lib/doctorDocumentTranslations";
+import { authenticatedFetch } from "../../../../lib/authService";
 
 type DocumentType =
   | "medical_registration"
   | "government_id"
   | "qualification_certificate";
 
+type VerificationStatus =
+  | "draft"
+  | "pending"
+  | "verified"
+  | "rejected"
+  | "suspended";
+
 type UploadedDocument = {
   _id: string;
-  documentType:
-    DocumentType;
+  documentType: DocumentType;
   originalName: string;
   mimeType: string;
   fileSize: number;
@@ -36,454 +37,279 @@ type UploadedDocument = {
 type DoctorProfileResponse = {
   success: boolean;
   message?: string;
-
   profile?: {
-    verificationStatus:
-      | "draft"
-      | "pending"
-      | "verified"
-      | "rejected"
-      | "suspended";
-
-    documents:
-      UploadedDocument[];
+    verificationStatus: VerificationStatus;
+    documents: UploadedDocument[];
   } | null;
 };
 
-const DOCUMENTS: Array<{
-  type: DocumentType;
-  title: string;
-  description: string;
-}> = [
-  {
-    type:
-      "medical_registration",
+type UploadResponse = {
+  success: boolean;
+  message?: string;
+  document?: UploadedDocument;
+};
 
-    title:
-      "Medical Registration",
-
-    description:
-      "Upload a fake sample registration certificate.",
-  },
-
-  {
-    type:
-      "government_id",
-
-    title:
-      "Government ID",
-
-    description:
-      "Upload a fake sample ID. Never upload a real Aadhaar card.",
-  },
-
-  {
-    type:
-      "qualification_certificate",
-
-    title:
-      "Qualification Certificate",
-
-    description:
-      "Upload a fake sample medical qualification certificate.",
-  },
+const DOCUMENT_TYPES: DocumentType[] = [
+  "medical_registration",
+  "government_id",
+  "qualification_certificate",
 ];
 
-const formatFileSize = (
-  bytes: number
-) => {
-  if (
-    bytes <
-    1024 * 1024
-  ) {
-    return `${Math.ceil(
-      bytes / 1024
-    )} KB`;
+const ALLOWED_FILE_TYPES = new Set([
+  "application/pdf",
+  "image/jpeg",
+  "image/png",
+]);
+
+const MAX_FILE_SIZE = 5 * 1024 * 1024;
+
+const formatFileSize = (bytes: number) => {
+  if (bytes < 1024 * 1024) {
+    return `${Math.ceil(bytes / 1024)} KB`;
   }
 
-  return `${(
-    bytes /
-    (1024 * 1024)
-  ).toFixed(1)} MB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 };
 
 export default function DoctorDocumentUpload() {
-  const [
-    uploadedDocuments,
-    setUploadedDocuments,
-  ] =
-    useState<
-      UploadedDocument[]
-    >([]);
+  const { language } = useLanguage();
+  const text = doctorDocumentTranslations[language];
 
-  const [
-    selectedFiles,
-    setSelectedFiles,
-  ] =
-    useState<
-      Partial<
-        Record<
-          DocumentType,
-          File
-        >
-      >
-    >({});
+  const documents = useMemo(
+    () => [
+      {
+        type: "medical_registration" as const,
+        title: text.documents.medicalRegistration,
+        description: text.documents.medicalRegistrationDescription,
+      },
+      {
+        type: "government_id" as const,
+        title: text.documents.governmentId,
+        description: text.documents.governmentIdDescription,
+      },
+      {
+        type: "qualification_certificate" as const,
+        title: text.documents.qualificationCertificate,
+        description: text.documents.qualificationCertificateDescription,
+      },
+    ],
+    [text]
+  );
 
-  const [
-    demoConfirmed,
-    setDemoConfirmed,
-  ] =
-    useState(false);
+  const [uploadedDocuments, setUploadedDocuments] = useState<UploadedDocument[]>([]);
+  const [selectedFiles, setSelectedFiles] = useState<
+    Partial<Record<DocumentType, File>>
+  >({});
+  const [demoConfirmed, setDemoConfirmed] = useState(false);
+  const [uploadingType, setUploadingType] = useState<DocumentType | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+  const [status, setStatus] = useState<VerificationStatus>("draft");
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
 
-  const [
-    uploadingType,
-    setUploadingType,
-  ] =
-    useState<
-      DocumentType | null
-    >(null);
+  const getApiUrl = useCallback(() => {
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL?.replace(/\/+$/, "");
 
-  const [
-    submitting,
-    setSubmitting,
-  ] =
-    useState(false);
+    if (!apiUrl) {
+      throw new Error(text.apiNotConfigured);
+    }
 
-  const [
-    status,
-    setStatus,
-  ] =
-    useState<
-      | "draft"
-      | "pending"
-      | "verified"
-      | "rejected"
-      | "suspended"
-    >("draft");
-
-  const [
-    error,
-    setError,
-  ] =
-    useState("");
-
-  const [
-    success,
-    setSuccess,
-  ] =
-    useState("");
-
-  const getApiUrl =
-    () => {
-      const apiUrl =
-        process.env
-          .NEXT_PUBLIC_API_URL
-          ?.replace(
-            /\/+$/,
-            ""
-          );
-
-      if (!apiUrl) {
-        throw new Error(
-          "Backend API URL is not configured"
-        );
-      }
-
-      return apiUrl;
-    };
+    return apiUrl;
+  }, [text.apiNotConfigured]);
 
   useEffect(() => {
-    const loadDocuments =
-      async () => {
-        try {
-          const response =
-            await authenticatedFetch(
-              `${getApiUrl()}/api/doctor/application`,
-              {
-                method:
-                  "GET",
+    const controller = new AbortController();
 
-                cache:
-                  "no-store",
-              }
-            );
+    const loadDocuments = async () => {
+      try {
+        setError("");
 
-          const data: DoctorProfileResponse =
-            await response.json();
-
-          if (!response.ok) {
-            throw new Error(
-              data.message ||
-                "Unable to load documents"
-            );
+        const response = await authenticatedFetch(
+          `${getApiUrl()}/api/doctor/application`,
+          {
+            method: "GET",
+            cache: "no-store",
+            signal: controller.signal,
           }
+        );
 
-          if (data.profile) {
-            setUploadedDocuments(
-              data.profile
-                .documents ||
-                []
-            );
+        const data: DoctorProfileResponse = await response.json();
 
-            setStatus(
-              data.profile
-                .verificationStatus
-            );
-          }
-        } catch (
-          caughtError
-        ) {
-          console.error(
-            "Document loading error:",
-            caughtError
-          );
-
-          setError(
-            caughtError instanceof
-              Error
-              ? caughtError.message
-              : "Unable to load documents"
-          );
+        if (!response.ok) {
+          throw new Error(data.message || text.unableToLoad);
         }
-      };
 
-    loadDocuments();
-  }, []);
+        if (data.profile) {
+          setUploadedDocuments(data.profile.documents || []);
+          setStatus(data.profile.verificationStatus);
+        }
+      } catch (caughtError) {
+        if (
+          caughtError instanceof DOMException &&
+          caughtError.name === "AbortError"
+        ) {
+          return;
+        }
 
-  const allDocumentsUploaded =
-    useMemo(
-      () =>
-        DOCUMENTS.every(
-          (required) =>
-            uploadedDocuments.some(
-              (uploaded) =>
-                uploaded
-                  .documentType ===
-                required.type
-            )
-        ),
-      [
-        uploadedDocuments,
-      ]
-    );
-
-  const uploadDocument =
-    async (
-      documentType:
-        DocumentType
-    ) => {
-      const file =
-        selectedFiles[
-          documentType
-        ];
-
-      setError("");
-      setSuccess("");
-
-      if (!file) {
+        console.error("Document loading error:", caughtError);
         setError(
-          "Select a sample document first."
+          caughtError instanceof Error ? caughtError.message : text.unableToLoad
         );
-
-        return;
       }
+    };
 
-      if (!demoConfirmed) {
-        setError(
-          "Confirm that all uploaded files are fake sample documents."
-        );
+    void loadDocuments();
+    return () => controller.abort();
+  }, [getApiUrl, text.unableToLoad]);
 
-        return;
-      }
+  const allDocumentsUploaded = useMemo(
+    () =>
+      DOCUMENT_TYPES.every((requiredType) =>
+        uploadedDocuments.some(
+          (uploaded) => uploaded.documentType === requiredType
+        )
+      ),
+    [uploadedDocuments]
+  );
 
-      setUploadingType(
-        documentType
+  const selectFile = (documentType: DocumentType, file: File | undefined) => {
+    setError("");
+    setSuccess("");
+
+    if (!file) {
+      setSelectedFiles((current) => {
+        const updated = { ...current };
+        delete updated[documentType];
+        return updated;
+      });
+      return;
+    }
+
+    if (!ALLOWED_FILE_TYPES.has(file.type)) {
+      setError(text.invalidFileType);
+      return;
+    }
+
+    if (file.size > MAX_FILE_SIZE) {
+      setError(text.fileTooLarge);
+      return;
+    }
+
+    setSelectedFiles((current) => ({ ...current, [documentType]: file }));
+  };
+
+  const uploadDocument = async (documentType: DocumentType) => {
+    const selectedFile = selectedFiles[documentType];
+    setError("");
+    setSuccess("");
+
+    if (!selectedFile) {
+      setError(text.selectDocument);
+      return;
+    }
+
+    if (!demoConfirmed) {
+      setError(text.confirmSamples);
+      return;
+    }
+
+    if (!ALLOWED_FILE_TYPES.has(selectedFile.type)) {
+      setError(text.invalidFileType);
+      return;
+    }
+
+    if (selectedFile.size > MAX_FILE_SIZE) {
+      setError(text.fileTooLarge);
+      return;
+    }
+
+    setUploadingType(documentType);
+
+    try {
+      const formData = new FormData();
+      formData.append("document", selectedFile);
+      formData.append("documentType", documentType);
+      formData.append("demoConfirmation", "true");
+
+      const response = await authenticatedFetch(
+        `${getApiUrl()}/api/doctor/application/documents`,
+        { method: "POST", body: formData }
       );
 
-      try {
-        const formData =
-          new FormData();
+      const data: UploadResponse = await response.json();
 
-        formData.append(
-          "document",
-          file
-        );
-
-        formData.append(
-          "documentType",
-          documentType
-        );
-
-        formData.append(
-          "demoConfirmation",
-          "true"
-        );
-
-        const response =
-          await authenticatedFetch(
-            `${getApiUrl()}/api/doctor/application/documents`,
-            {
-              method:
-                "POST",
-
-              body:
-                formData,
-            }
-          );
-
-        const data =
-          await response.json();
-
-        if (!response.ok) {
-          throw new Error(
-            data.message ||
-              "Unable to upload document"
-          );
-        }
-
-        const savedDocument =
-          data.document as
-            UploadedDocument;
-
-        setUploadedDocuments(
-          (current) => [
-            ...current.filter(
-              (document) =>
-                document
-                  .documentType !==
-                documentType
-            ),
-
-            savedDocument,
-          ]
-        );
-
-        setSelectedFiles(
-          (current) => {
-            const updated = {
-              ...current,
-            };
-
-            delete updated[
-              documentType
-            ];
-
-            return updated;
-          }
-        );
-
-        setSuccess(
-          "Sample document uploaded successfully."
-        );
-      } catch (
-        caughtError
-      ) {
-        console.error(
-          "Document upload error:",
-          caughtError
-        );
-
-        setError(
-          caughtError instanceof
-            Error
-            ? caughtError.message
-            : "Unable to upload document"
-        );
-      } finally {
-        setUploadingType(
-          null
-        );
+      if (!response.ok) {
+        throw new Error(data.message || text.unableToUpload);
       }
-    };
 
-  const submitApplication =
-    async () => {
-      setError("");
-      setSuccess("");
-      setSubmitting(true);
-
-      try {
-        const response =
-          await authenticatedFetch(
-            `${getApiUrl()}/api/doctor/application/submit`,
-            {
-              method:
-                "POST",
-
-              headers: {
-                "Content-Type":
-                  "application/json",
-              },
-
-              body:
-                JSON.stringify(
-                  {}
-                ),
-            }
-          );
-
-        const data =
-          await response.json();
-
-        if (!response.ok) {
-          throw new Error(
-            data.message ||
-              "Unable to submit application"
-          );
-        }
-
-        setStatus(
-          "pending"
-        );
-
-        setSuccess(
-          "Doctor application submitted for administrator verification."
-        );
-      } catch (
-        caughtError
-      ) {
-        console.error(
-          "Application submission error:",
-          caughtError
-        );
-
-        setError(
-          caughtError instanceof
-            Error
-              ? caughtError.message
-              : "Unable to submit application"
-        );
-      } finally {
-        setSubmitting(
-          false
-        );
+      if (!data.document) {
+        throw new Error(text.missingUploadedDocument);
       }
-    };
 
-  const formLocked =
-    [
-      "pending",
-      "verified",
-      "suspended",
-    ].includes(status);
+      const savedDocument = data.document;
+      setUploadedDocuments((current) => [
+        ...current.filter((document) => document.documentType !== documentType),
+        savedDocument,
+      ]);
+      setSelectedFiles((current) => {
+        const updated = { ...current };
+        delete updated[documentType];
+        return updated;
+      });
+      setSuccess(text.uploadSuccess);
+    } catch (caughtError) {
+      console.error("Document upload error:", caughtError);
+      setError(
+        caughtError instanceof Error ? caughtError.message : text.unableToUpload
+      );
+    } finally {
+      setUploadingType(null);
+    }
+  };
+
+  const submitApplication = async () => {
+    setError("");
+    setSuccess("");
+    setSubmitting(true);
+
+    try {
+      const response = await authenticatedFetch(
+        `${getApiUrl()}/api/doctor/application/submit`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({}),
+        }
+      );
+
+      const data: { success?: boolean; message?: string } = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || text.unableToSubmit);
+      }
+
+      setStatus("pending");
+      setSuccess(text.submitSuccess);
+    } catch (caughtError) {
+      console.error("Application submission error:", caughtError);
+      setError(
+        caughtError instanceof Error ? caughtError.message : text.unableToSubmit
+      );
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const formLocked = ["pending", "verified", "suspended"].includes(status);
 
   return (
     <section className="mt-6 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
       <div className="flex items-start gap-3">
-        <FileCheck2
-          size={26}
-          className="mt-0.5 text-cyan-700"
-        />
-
+        <FileCheck2 size={26} className="mt-0.5 text-cyan-700" />
         <div>
-          <h2 className="text-xl font-bold">
-            Verification Documents
-          </h2>
-
+          <h2 className="text-xl font-bold">{text.heading}</h2>
           <p className="mt-1 text-sm leading-6 text-slate-500">
-            Development mode only:
-            upload fake PDF, JPG or
-            PNG samples up to 5 MB.
+            {text.description}
           </p>
         </div>
       </div>
@@ -491,193 +317,121 @@ export default function DoctorDocumentUpload() {
       <label className="mt-6 flex items-start gap-3 rounded-2xl border border-red-200 bg-red-50 p-4">
         <input
           type="checkbox"
-          checked={
-            demoConfirmed
-          }
-          onChange={(
-            event
-          ) =>
-            setDemoConfirmed(
-              event.target
-                .checked
-            )
-          }
-          disabled={
-            formLocked
-          }
+          checked={demoConfirmed}
+          onChange={(event) => setDemoConfirmed(event.target.checked)}
+          disabled={formLocked}
           className="mt-1 h-4 w-4"
         />
-
         <span className="text-sm leading-6 text-red-700">
-          I confirm that these
-          are fake sample files
-          created only for project
-          testing. They contain no
-          real Aadhaar, government
-          ID or medical certificate.
+          {text.confirmation}
         </span>
       </label>
 
       {error && (
-        <div className="mt-5 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+        <div
+          role="alert"
+          className="mt-5 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700"
+        >
           {error}
         </div>
       )}
 
       {success && (
-        <div className="mt-5 flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-700">
-          <CheckCircle2
-            size={19}
-          />
-
+        <div
+          role="status"
+          className="mt-5 flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-700"
+        >
+          <CheckCircle2 size={19} />
           {success}
         </div>
       )}
 
       <div className="mt-6 space-y-4">
-        {DOCUMENTS.map(
-          (required) => {
-            const uploaded =
-              uploadedDocuments.find(
-                (document) =>
-                  document
-                    .documentType ===
-                  required.type
-              );
+        {documents.map((required) => {
+          const uploaded = uploadedDocuments.find(
+            (document) => document.documentType === required.type
+          );
+          const uploading = uploadingType === required.type;
+          const selectedFile = selectedFiles[required.type];
 
-            const uploading =
-              uploadingType ===
-              required.type;
+          return (
+            <div
+              key={required.type}
+              className="rounded-2xl border border-slate-200 p-5"
+            >
+              <div className="flex flex-col justify-between gap-4 md:flex-row md:items-center">
+                <div>
+                  <p className="font-semibold">{required.title}</p>
+                  <p className="mt-1 text-sm text-slate-500">
+                    {required.description}
+                  </p>
 
-            return (
-              <div
-                key={
-                  required.type
-                }
-                className="rounded-2xl border border-slate-200 p-5"
-              >
-                <div className="flex flex-col justify-between gap-4 md:flex-row md:items-center">
-                  <div>
-                    <p className="font-semibold">
-                      {
-                        required.title
-                      }
+                  {selectedFile && (
+                    <p className="mt-2 text-sm font-medium text-cyan-700">
+                      {text.selected}: {selectedFile.name} (
+                      {formatFileSize(selectedFile.size)})
                     </p>
+                  )}
 
-                    <p className="mt-1 text-sm text-slate-500">
-                      {
-                        required.description
-                      }
+                  {uploaded && (
+                    <p className="mt-2 text-sm font-medium text-emerald-700">
+                      {text.uploaded}: {uploaded.originalName} (
+                      {formatFileSize(uploaded.fileSize)})
                     </p>
-
-                    {uploaded && (
-                      <p className="mt-2 text-sm font-medium text-emerald-700">
-                        Uploaded:{" "}
-                        {
-                          uploaded.originalName
-                        }{" "}
-                        (
-                        {formatFileSize(
-                          uploaded.fileSize
-                        )}
-                        )
-                      </p>
-                    )}
-                  </div>
-
-                  {!formLocked && (
-                    <div className="flex flex-col gap-2 sm:flex-row">
-                      <input
-                        type="file"
-                        accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png"
-                        disabled={
-                          uploading
-                        }
-                        onChange={(
-                          event
-                        ) => {
-                          const file =
-                            event
-                              .target
-                              .files?.[0];
-
-                          if (file) {
-                            setSelectedFiles(
-                              (
-                                current
-                              ) => ({
-                                ...current,
-
-                                [required.type]:
-                                  file,
-                              })
-                            );
-                          }
-                        }}
-                        className="max-w-xs rounded-xl border border-slate-300 px-3 py-2 text-sm"
-                      />
-
-                      <button
-                        type="button"
-                        disabled={
-                          uploading ||
-                          !demoConfirmed
-                        }
-                        onClick={() =>
-                          uploadDocument(
-                            required.type
-                          )
-                        }
-                        className="flex items-center justify-center gap-2 rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
-                      >
-                        {uploading ? (
-                          <LoaderCircle
-                            size={17}
-                            className="animate-spin"
-                          />
-                        ) : (
-                          <Upload
-                            size={17}
-                          />
-                        )}
-
-                        {uploaded
-                          ? "Replace"
-                          : "Upload"}
-                      </button>
-                    </div>
                   )}
                 </div>
+
+                {!formLocked && (
+                  <div className="flex flex-col gap-2 sm:flex-row">
+                    <input
+                      type="file"
+                      accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png"
+                      disabled={uploading}
+                      onChange={(event) =>
+                        selectFile(required.type, event.target.files?.[0])
+                      }
+                      className="max-w-xs rounded-xl border border-slate-300 px-3 py-2 text-sm"
+                    />
+                    <button
+                      type="button"
+                      disabled={uploading || !demoConfirmed || !selectedFile}
+                      onClick={() => uploadDocument(required.type)}
+                      className="flex items-center justify-center gap-2 rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      {uploading ? (
+                        <LoaderCircle size={17} className="animate-spin" />
+                      ) : (
+                        <Upload size={17} />
+                      )}
+                      {uploading
+                        ? text.uploading
+                        : uploaded
+                          ? text.replace
+                          : text.upload}
+                    </button>
+                  </div>
+                )}
               </div>
-            );
-          }
-        )}
+            </div>
+          );
+        })}
       </div>
 
       {!formLocked && (
         <button
           type="button"
-          onClick={
-            submitApplication
-          }
+          onClick={submitApplication}
           disabled={
-            !allDocumentsUploaded ||
-            submitting
+            !allDocumentsUploaded || submitting || uploadingType !== null
           }
           className="mt-6 flex w-full items-center justify-center gap-2 rounded-xl bg-cyan-500 py-3 font-semibold text-slate-950 disabled:cursor-not-allowed disabled:opacity-50"
         >
           {submitting ? (
-            <LoaderCircle
-              size={19}
-              className="animate-spin"
-            />
+            <LoaderCircle size={19} className="animate-spin" />
           ) : (
-            <Send
-              size={19}
-            />
+            <Send size={19} />
           )}
-
-          Submit for Verification
+          {submitting ? text.submitting : text.submitForVerification}
         </button>
       )}
     </section>

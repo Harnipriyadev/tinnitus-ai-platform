@@ -10,9 +10,9 @@ import {
   Trash2,
 } from "lucide-react";
 
-import {
-  authenticatedFetch,
-} from "../../../../lib/authService";
+import { useLanguage } from "../../context/LanguageContext";
+import { doctorAvailabilityTranslations } from "../../../../lib/doctorAvailabilityTranslations";
+import { authenticatedFetch } from "../../../../lib/authService";
 
 type TimeSlotInput = {
   startTime: string;
@@ -44,23 +44,23 @@ const EMPTY_SLOT: TimeSlotInput = {
   endTime: "09:30",
 };
 
-const getApiUrl = () => {
+const getApiUrl = (errorMessage: string) => {
   const apiUrl = process.env.NEXT_PUBLIC_API_URL?.replace(/\/+$/, "");
 
   if (!apiUrl) {
-    throw new Error("Backend API URL is not configured");
+    throw new Error(errorMessage);
   }
 
   return apiUrl;
 };
 
-const readResponse = async <T,>(response: Response): Promise<T> => {
+const readResponse = async <T,>(response: Response, fallback: string) => {
   const data = (await response.json().catch(() => ({}))) as T & {
     message?: string;
   };
 
   if (!response.ok) {
-    throw new Error(data.message || "The request could not be completed");
+    throw new Error(data.message || fallback);
   }
 
   return data;
@@ -75,17 +75,33 @@ const getIndiaDateInput = () => {
   }).formatToParts(new Date());
 
   const values = Object.fromEntries(
-    parts.filter((part) => part.type !== "literal").map((part) => [
-      part.type,
-      part.value,
-    ])
+    parts
+      .filter((part) => part.type !== "literal")
+      .map((part) => [part.type, part.value])
   );
 
   return `${values.year}-${values.month}-${values.day}`;
 };
 
-const formatAvailabilityDate = (value: string) =>
-  new Intl.DateTimeFormat("en-IN", {
+const getDateInputValue = (value: string) => {
+  const parts = new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Asia/Kolkata",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(new Date(value));
+
+  const values = Object.fromEntries(
+    parts
+      .filter((part) => part.type !== "literal")
+      .map((part) => [part.type, part.value])
+  );
+
+  return `${values.year}-${values.month}-${values.day}`;
+};
+
+const formatAvailabilityDate = (value: string, locale: string) =>
+  new Intl.DateTimeFormat(locale, {
     timeZone: "Asia/Kolkata",
     weekday: "short",
     day: "numeric",
@@ -94,11 +110,13 @@ const formatAvailabilityDate = (value: string) =>
   }).format(new Date(value));
 
 export default function DoctorAvailability() {
+  const { language } = useLanguage();
+  const text = doctorAvailabilityTranslations[language];
+  const locale = language === "kn" ? "kn-IN" : language === "hi" ? "hi-IN" : "en-IN";
+
   const minimumDate = useMemo(getIndiaDateInput, []);
   const [date, setDate] = useState(minimumDate);
-  const [slots, setSlots] = useState<TimeSlotInput[]>([
-    { ...EMPTY_SLOT },
-  ]);
+  const [slots, setSlots] = useState<TimeSlotInput[]>([{ ...EMPTY_SLOT }]);
   const [availability, setAvailability] = useState<Availability[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -112,27 +130,24 @@ export default function DoctorAvailability() {
 
     try {
       const response = await authenticatedFetch(
-        `${getApiUrl()}/api/doctor/availability`,
-        {
-          method: "GET",
-          cache: "no-store",
-        }
+        `${getApiUrl(text.apiNotConfigured)}/api/doctor/availability`,
+        { method: "GET", cache: "no-store" }
       );
-
-      const data = await readResponse<AvailabilityResponse>(response);
+      const data = await readResponse<AvailabilityResponse>(
+        response,
+        text.requestFailed
+      );
       setAvailability(
         Array.isArray(data.availability) ? data.availability : []
       );
     } catch (caughtError) {
       setError(
-        caughtError instanceof Error
-          ? caughtError.message
-          : "Unable to load availability"
+        caughtError instanceof Error ? caughtError.message : text.unableToLoad
       );
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [text]);
 
   useEffect(() => {
     void loadAvailability();
@@ -145,19 +160,14 @@ export default function DoctorAvailability() {
   ) => {
     setSlots((current) =>
       current.map((slot, slotIndex) =>
-        slotIndex === index
-          ? {
-              ...slot,
-              [field]: value,
-            }
-          : slot
+        slotIndex === index ? { ...slot, [field]: value } : slot
       )
     );
   };
 
   const addSlot = () => {
     if (slots.length >= 30) {
-      setError("A maximum of 30 slots can be added for one date.");
+      setError(text.maximumSlots);
       return;
     }
 
@@ -167,7 +177,7 @@ export default function DoctorAvailability() {
 
   const removeSlot = (index: number) => {
     if (slots.length === 1) {
-      setError("At least one time slot is required.");
+      setError(text.minimumSlot);
       return;
     }
 
@@ -179,24 +189,11 @@ export default function DoctorAvailability() {
 
   const editAvailability = (item: Availability) => {
     if (item.slots.some((slot) => slot.isBooked)) {
-      setError("Availability with a booked appointment cannot be edited.");
+      setError(text.bookedCannotEdit);
       return;
     }
 
-    const indiaDate = new Intl.DateTimeFormat("en-GB", {
-      timeZone: "Asia/Kolkata",
-      year: "numeric",
-      month: "2-digit",
-      day: "2-digit",
-    }).formatToParts(new Date(item.date));
-
-    const values = Object.fromEntries(
-      indiaDate
-        .filter((part) => part.type !== "literal")
-        .map((part) => [part.type, part.value])
-    );
-
-    setDate(`${values.year}-${values.month}-${values.day}`);
+    setDate(getDateInputValue(item.date));
     setSlots(
       item.slots.map((slot) => ({
         startTime: slot.startTime,
@@ -204,7 +201,7 @@ export default function DoctorAvailability() {
       }))
     );
     setError("");
-    setSuccess("Availability loaded into the form. Save to update it.");
+    setSuccess(text.loadedForEditing);
     window.scrollTo({ top: document.body.scrollHeight, behavior: "smooth" });
   };
 
@@ -213,17 +210,17 @@ export default function DoctorAvailability() {
     setSuccess("");
 
     if (!date) {
-      setError("Select an availability date.");
+      setError(text.selectDate);
       return;
     }
 
     if (slots.some((slot) => !slot.startTime || !slot.endTime)) {
-      setError("Enter a start and end time for every slot.");
+      setError(text.enterEverySlot);
       return;
     }
 
     if (slots.some((slot) => slot.startTime >= slot.endTime)) {
-      setError("Every slot must end after its start time.");
+      setError(text.invalidSlotOrder);
       return;
     }
 
@@ -231,29 +228,23 @@ export default function DoctorAvailability() {
 
     try {
       const response = await authenticatedFetch(
-        `${getApiUrl()}/api/doctor/availability`,
+        `${getApiUrl(text.apiNotConfigured)}/api/doctor/availability`,
         {
           method: "PUT",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            date,
-            slots,
-            timezone: "Asia/Kolkata",
-          }),
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ date, slots, timezone: "Asia/Kolkata" }),
         }
       );
-
-      const data = await readResponse<AvailabilityResponse>(response);
-      setSuccess(data.message || "Availability saved successfully.");
+      const data = await readResponse<AvailabilityResponse>(
+        response,
+        text.requestFailed
+      );
+      setSuccess(data.message || text.savedSuccessfully);
       setSlots([{ ...EMPTY_SLOT }]);
       await loadAvailability();
     } catch (caughtError) {
       setError(
-        caughtError instanceof Error
-          ? caughtError.message
-          : "Unable to save availability"
+        caughtError instanceof Error ? caughtError.message : text.unableToSave
       );
     } finally {
       setSaving(false);
@@ -261,9 +252,7 @@ export default function DoctorAvailability() {
   };
 
   const deleteAvailability = async (id: string) => {
-    if (!window.confirm("Remove this availability date?")) {
-      return;
-    }
+    if (!window.confirm(text.removeConfirmation)) return;
 
     setError("");
     setSuccess("");
@@ -271,20 +260,18 @@ export default function DoctorAvailability() {
 
     try {
       const response = await authenticatedFetch(
-        `${getApiUrl()}/api/doctor/availability/${id}`,
-        {
-          method: "DELETE",
-        }
+        `${getApiUrl(text.apiNotConfigured)}/api/doctor/availability/${id}`,
+        { method: "DELETE" }
       );
-
-      const data = await readResponse<AvailabilityResponse>(response);
-      setSuccess(data.message || "Availability removed successfully.");
+      const data = await readResponse<AvailabilityResponse>(
+        response,
+        text.requestFailed
+      );
+      setSuccess(data.message || text.removedSuccessfully);
       await loadAvailability();
     } catch (caughtError) {
       setError(
-        caughtError instanceof Error
-          ? caughtError.message
-          : "Unable to remove availability"
+        caughtError instanceof Error ? caughtError.message : text.unableToRemove
       );
     } finally {
       setDeletingId("");
@@ -298,11 +285,8 @@ export default function DoctorAvailability() {
           <CalendarDays size={23} />
         </span>
         <div>
-          <h2 className="text-xl font-bold">Consultation availability</h2>
-          <p className="mt-1 text-sm text-slate-500">
-            Add the dates and times when patients can book a consultation.
-            Times use the Asia/Kolkata timezone.
-          </p>
+          <h2 className="text-xl font-bold">{text.heading}</h2>
+          <p className="mt-1 text-sm text-slate-500">{text.description}</p>
         </div>
       </div>
 
@@ -321,7 +305,7 @@ export default function DoctorAvailability() {
       <div className="mt-6 rounded-2xl border border-slate-200 bg-slate-50 p-5">
         <label className="block">
           <span className="text-sm font-semibold text-slate-700">
-            Available date
+            {text.availableDate}
           </span>
           <input
             type="date"
@@ -335,10 +319,13 @@ export default function DoctorAvailability() {
 
         <div className="mt-5 space-y-3">
           {slots.map((slot, index) => (
-            <div key={index} className="grid items-end gap-3 rounded-xl border border-slate-200 bg-white p-4 sm:grid-cols-[1fr_1fr_auto]">
+            <div
+              key={index}
+              className="grid items-end gap-3 rounded-xl border border-slate-200 bg-white p-4 sm:grid-cols-[1fr_1fr_auto]"
+            >
               <label>
                 <span className="text-xs font-semibold text-slate-600">
-                  Start time
+                  {text.startTime}
                 </span>
                 <input
                   type="time"
@@ -353,7 +340,7 @@ export default function DoctorAvailability() {
 
               <label>
                 <span className="text-xs font-semibold text-slate-600">
-                  End time
+                  {text.endTime}
                 </span>
                 <input
                   type="time"
@@ -370,7 +357,7 @@ export default function DoctorAvailability() {
                 type="button"
                 onClick={() => removeSlot(index)}
                 disabled={saving || slots.length === 1}
-                aria-label={`Remove slot ${index + 1}`}
+                aria-label={`${text.removeSlot} ${index + 1}`}
                 className="flex h-10 items-center justify-center rounded-xl border border-red-200 px-3 text-red-600 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-40"
               >
                 <Trash2 size={18} />
@@ -387,7 +374,7 @@ export default function DoctorAvailability() {
             className="flex items-center justify-center gap-2 rounded-xl border border-cyan-300 bg-white py-3 font-semibold text-cyan-700 hover:bg-cyan-50 disabled:opacity-50"
           >
             <Plus size={19} />
-            Add another slot
+            {text.addSlot}
           </button>
 
           <button
@@ -401,22 +388,22 @@ export default function DoctorAvailability() {
             ) : (
               <Save size={19} />
             )}
-            {saving ? "Saving..." : "Save availability"}
+            {saving ? text.saving : text.saveAvailability}
           </button>
         </div>
       </div>
 
       <div className="mt-8">
-        <h3 className="text-lg font-bold">Upcoming availability</h3>
+        <h3 className="text-lg font-bold">{text.upcoming}</h3>
 
         {loading ? (
           <div className="mt-4 flex items-center gap-3 text-sm text-slate-500">
             <LoaderCircle size={19} className="animate-spin" />
-            Loading availability...
+            {text.loading}
           </div>
         ) : availability.length === 0 ? (
           <div className="mt-4 rounded-xl bg-slate-50 p-5 text-sm text-slate-500">
-            No availability has been added yet.
+            {text.noneAdded}
           </div>
         ) : (
           <div className="mt-4 space-y-4">
@@ -424,10 +411,10 @@ export default function DoctorAvailability() {
               <article key={item._id} className="rounded-2xl border border-slate-200 p-5">
                 <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-start">
                   <div>
-                    <p className="font-bold">{formatAvailabilityDate(item.date)}</p>
-                    <p className="mt-1 text-xs text-slate-500">
-                      {item.timezone}
+                    <p className="font-bold">
+                      {formatAvailabilityDate(item.date, locale)}
                     </p>
+                    <p className="mt-1 text-xs text-slate-500">{item.timezone}</p>
                   </div>
 
                   <div className="flex gap-2">
@@ -437,7 +424,7 @@ export default function DoctorAvailability() {
                       disabled={item.slots.some((slot) => slot.isBooked)}
                       className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
                     >
-                      Edit
+                      {text.edit}
                     </button>
                     <button
                       type="button"
@@ -453,7 +440,7 @@ export default function DoctorAvailability() {
                       ) : (
                         <Trash2 size={16} />
                       )}
-                      Remove
+                      {text.remove}
                     </button>
                   </div>
                 </div>
@@ -470,7 +457,7 @@ export default function DoctorAvailability() {
                     >
                       <Clock3 size={15} />
                       {slot.startTime}–{slot.endTime}
-                      {slot.isBooked ? " · Booked" : " · Open"}
+                      {slot.isBooked ? ` · ${text.booked}` : ` · ${text.open}`}
                     </span>
                   ))}
                 </div>

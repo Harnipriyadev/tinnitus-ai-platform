@@ -1,26 +1,35 @@
 "use client";
 
 import {
-  FormEvent,
+  type FormEvent,
   useState,
 } from "react";
-
 import Link from "next/link";
-
 import {
   sendPasswordResetEmail,
 } from "firebase/auth";
-
 import {
   ArrowLeft,
   Mail,
 } from "lucide-react";
 
+import { auth } from "../../../lib/firebase";
 import {
-  auth,
-} from "../../../lib/firebase";
+  forgotPasswordTranslations,
+} from "../../../lib/forgotPasswordTranslations";
+import {
+  useLanguage,
+} from "../context/LanguageContext";
 
 export default function ForgotPasswordPage() {
+  const { language } =
+    useLanguage();
+
+  const text =
+    forgotPasswordTranslations[
+      language
+    ];
+
   const [email, setEmail] =
     useState("");
 
@@ -38,20 +47,16 @@ export default function ForgotPasswordPage() {
       FormEvent<HTMLFormElement>
   ) => {
     event.preventDefault();
-
     setMessage("");
     setError("");
 
     const normalizedEmail =
-      email
-        .trim()
-        .toLowerCase();
+      email.trim().toLowerCase();
 
     if (!normalizedEmail) {
       setError(
-        "Please enter your email address."
+        text.emailRequired
       );
-
       return;
     }
 
@@ -60,8 +65,12 @@ export default function ForgotPasswordPage() {
     try {
       /*
        * Firebase sends and securely validates
-       * the password-reset link.
+       * the password-reset link. The selected
+       * site language is also requested for the
+       * Firebase email template.
        */
+      auth.languageCode = language;
+
       await sendPasswordResetEmail(
         auth,
         normalizedEmail
@@ -72,45 +81,42 @@ export default function ForgotPasswordPage() {
        * does not reveal registered accounts.
        */
       setMessage(
-        "If an account exists with this email, Firebase password-reset instructions have been sent. Check your inbox and spam folder."
+        text.genericSuccess
       );
-
       setEmail("");
-    } catch (error) {
+    } catch (caughtError) {
       console.error(
         "Firebase password reset error:",
-        error
+        caughtError
       );
 
       const firebaseError =
-        error as {
+        caughtError as {
           code?: string;
         };
 
-      switch (
-        firebaseError.code
-      ) {
+      switch (firebaseError.code) {
         case "auth/invalid-email":
           setError(
-            "Enter a valid email address."
+            text.invalidEmail
           );
           break;
 
         case "auth/too-many-requests":
           setError(
-            "Too many reset requests. Wait a few minutes before trying again."
+            text.tooManyRequests
           );
           break;
 
         case "auth/network-request-failed":
           setError(
-            "Unable to connect. Check your internet connection."
+            text.networkError
           );
           break;
 
         case "auth/unauthorized-domain":
           setError(
-            "This website is not authorized in Firebase."
+            text.unauthorizedDomain
           );
           break;
 
@@ -120,14 +126,14 @@ export default function ForgotPasswordPage() {
            * email-account enumeration.
            */
           setMessage(
-            "If an account exists with this email, Firebase password-reset instructions have been sent. Check your inbox and spam folder."
+            text.genericSuccess
           );
           setEmail("");
           break;
 
         default:
           setError(
-            "Unable to send the reset email. Please try again."
+            text.unableToSend
           );
       }
     } finally {
@@ -149,20 +155,15 @@ export default function ForgotPasswordPage() {
           </div>
 
           <h1 className="text-3xl font-bold text-white">
-            Forgot Password
+            {text.title}
           </h1>
 
           <p className="mt-3 text-gray-400">
-            Enter your registered
-            email address and Firebase
-            will send a secure
-            password-reset link.
+            {text.description}
           </p>
         </div>
 
-        <form
-          onSubmit={handleSubmit}
-        >
+        <form onSubmit={handleSubmit}>
           <div className="relative mb-5">
             <Mail
               size={20}
@@ -177,8 +178,12 @@ export default function ForgotPasswordPage() {
                   event.target.value
                 )
               }
-              placeholder="Email Address"
-              aria-label="Email address"
+              placeholder={
+                text.emailAddress
+              }
+              aria-label={
+                text.emailAddress
+              }
               autoComplete="email"
               inputMode="email"
               maxLength={254}
@@ -214,11 +219,10 @@ export default function ForgotPasswordPage() {
             {loading ? (
               <span className="flex items-center gap-3">
                 <span className="h-5 w-5 animate-spin rounded-full border-2 border-black/30 border-t-black" />
-
-                Sending...
+                {text.sending}
               </span>
             ) : (
-              "Send Reset Link"
+              text.sendResetLink
             )}
           </button>
         </form>
@@ -227,11 +231,8 @@ export default function ForgotPasswordPage() {
           href="/login"
           className="mt-7 flex items-center justify-center gap-2 text-sm font-medium text-cyan-400 transition hover:text-cyan-300"
         >
-          <ArrowLeft
-            size={18}
-          />
-
-          Back to Login
+          <ArrowLeft size={18} />
+          {text.backToLogin}
         </Link>
       </div>
     </main>

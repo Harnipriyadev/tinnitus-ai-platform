@@ -8,6 +8,7 @@ import {
   ArrowLeft,
   ArrowRight,
   Brain,
+  Info,
 } from "lucide-react";
 
 import {
@@ -15,21 +16,36 @@ import {
   logoutUser,
 } from "../../../lib/authService";
 
+import {
+  getAssessmentTranslation,
+} from "../../../lib/assessmentTranslations";
+
+import type {
+  AssessmentQuestionName,
+} from "../../../lib/assessmentTranslations";
+
+import {
+  useLanguage,
+} from "../context/LanguageContext";
+
 type Question = {
-  question: string;
-  name: string;
+  name: AssessmentQuestionName;
+
   type:
     | "text"
     | "email"
     | "number"
     | "select";
+
   options?: string[];
+  min?: number;
+  max?: number;
+  step?: number;
 };
 
 type AssessmentResponse = {
   success?: boolean;
   message?: string;
-
   prediction?: unknown;
 
   assessment?: {
@@ -38,25 +54,27 @@ type AssessmentResponse = {
   };
 };
 
+/*
+ * These original values are submitted to the
+ * backend and must not be translated.
+ */
 const questions: Question[] = [
   {
-    question: "Patient Name",
     name: "patient_name",
     type: "text",
   },
   {
-    question: "Email",
     name: "email",
     type: "email",
   },
   {
-    question: "What is your age?",
     name: "age",
     type: "number",
+    min: 1,
+    max: 120,
+    step: 1,
   },
   {
-    question:
-      "What is your gender?",
     name: "gender",
     type: "select",
     options: [
@@ -65,8 +83,6 @@ const questions: Question[] = [
     ],
   },
   {
-    question:
-      "What type of tinnitus do you have?",
     name: "tinnitus_type",
     type: "select",
     options: [
@@ -78,8 +94,6 @@ const questions: Question[] = [
     ],
   },
   {
-    question:
-      "Which ear is affected?",
     name: "affected_ear",
     type: "select",
     options: [
@@ -89,18 +103,20 @@ const questions: Question[] = [
     ],
   },
   {
-    question:
-      "Tinnitus Frequency (Hz)",
     name: "frequency_hz",
     type: "number",
+    min: 20,
+    max: 20000,
+    step: 1,
   },
   {
-    question: "Loudness (dB)",
     name: "loudness_db",
     type: "number",
+    min: 0,
+    max: 120,
+    step: 1,
   },
   {
-    question: "Hearing Loss",
     name: "hearing_loss",
     type: "select",
     options: [
@@ -111,35 +127,40 @@ const questions: Question[] = [
     ],
   },
   {
-    question: "THI Score",
     name: "thi_score",
     type: "number",
+    min: 0,
+    max: 100,
+    step: 1,
   },
   {
-    question: "TFI Score",
     name: "tfi_score",
     type: "number",
+    min: 0,
+    max: 100,
+    step: 1,
   },
   {
-    question:
-      "HADS Anxiety Score",
     name: "hads_anxiety",
     type: "number",
+    min: 0,
+    max: 21,
+    step: 1,
   },
   {
-    question:
-      "HADS Depression Score",
     name: "hads_depression",
     type: "number",
+    min: 0,
+    max: 21,
+    step: 1,
   },
   {
-    question: "Sleep Score",
     name: "sleep_score",
     type: "number",
+    min: 0,
+    step: 1,
   },
   {
-    question:
-      "Current Treatment",
     name: "treatment",
     type: "select",
     options: [
@@ -156,19 +177,33 @@ const questions: Question[] = [
 export default function AssessmentPage() {
   const router = useRouter();
 
+  const {
+    language,
+  } = useLanguage();
+
   const [current, setCurrent] =
     useState(0);
 
   const [answers, setAnswers] =
-    useState<
-      Record<string, string>
-    >({});
+    useState<Record<string, string>>(
+      {}
+    );
 
   const [loading, setLoading] =
     useState(false);
 
+  const translation =
+    getAssessmentTranslation(
+      language
+    );
+
   const currentQuestion =
     questions[current];
+
+  const questionText =
+    translation.questions[
+      currentQuestion.name
+    ];
 
   const progress =
     ((current + 1) /
@@ -178,6 +213,10 @@ export default function AssessmentPage() {
   const handleAnswer = (
     value: string
   ) => {
+    /*
+     * Select options are stored using their
+     * original English backend values.
+     */
     setAnswers(
       (previousAnswers) => ({
         ...previousAnswers,
@@ -188,16 +227,97 @@ export default function AssessmentPage() {
     );
   };
 
+  const validateCurrentAnswer =
+    () => {
+      const answer =
+        answers[
+          currentQuestion.name
+        ]?.trim();
+
+      if (!answer) {
+        alert(
+          translation.validation
+            .required
+        );
+
+        return false;
+      }
+
+      if (
+        currentQuestion.type ===
+        "number"
+      ) {
+        const numericValue =
+          Number(answer);
+
+        if (
+          !Number.isFinite(
+            numericValue
+          )
+        ) {
+          alert(
+            translation.validation
+              .invalidNumber
+          );
+
+          return false;
+        }
+
+        if (
+          currentQuestion.min !==
+            undefined &&
+          numericValue <
+            currentQuestion.min
+        ) {
+          alert(
+            `${translation.validation.minimumValue} ${currentQuestion.min}.`
+          );
+
+          return false;
+        }
+
+        if (
+          currentQuestion.max !==
+            undefined &&
+          numericValue >
+            currentQuestion.max
+        ) {
+          alert(
+            `${translation.validation.maximumValue} ${currentQuestion.max}.`
+          );
+
+          return false;
+        }
+      }
+
+      if (
+        currentQuestion.type ===
+        "email"
+      ) {
+        const emailPattern =
+          /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+        if (
+          !emailPattern.test(
+            answer
+          )
+        ) {
+          alert(
+            translation.validation
+              .invalidEmail
+          );
+
+          return false;
+        }
+      }
+
+      return true;
+    };
+
   const nextQuestion = () => {
     if (
-      !answers[
-        currentQuestion.name
-      ]?.trim()
+      !validateCurrentAnswer()
     ) {
-      alert(
-        "Please answer this question."
-      );
-
       return;
     }
 
@@ -212,26 +332,21 @@ export default function AssessmentPage() {
     }
   };
 
-  const previousQuestion = () => {
-    if (current > 0) {
-      setCurrent(
-        (previous) =>
-          previous - 1
-      );
-    }
-  };
+  const previousQuestion =
+    () => {
+      if (current > 0) {
+        setCurrent(
+          (previous) =>
+            previous - 1
+        );
+      }
+    };
 
   const handleSubmit =
     async () => {
       if (
-        !answers[
-          currentQuestion.name
-        ]?.trim()
+        !validateCurrentAnswer()
       ) {
-        alert(
-          "Please answer this question."
-        );
-
         return;
       }
 
@@ -242,7 +357,8 @@ export default function AssessmentPage() {
 
       if (!apiUrl) {
         alert(
-          "Backend API URL is not configured."
+          translation.validation
+            .apiNotConfigured
         );
 
         return;
@@ -273,13 +389,16 @@ export default function AssessmentPage() {
 
         if (!response.ok) {
           if (
-            response.status === 401 ||
-            response.status === 403
+            response.status ===
+              401 ||
+            response.status ===
+              403
           ) {
             await logoutUser();
 
             alert(
-              "Your session has expired. Please log in again."
+              translation.validation
+                .sessionExpired
             );
 
             router.replace(
@@ -291,7 +410,8 @@ export default function AssessmentPage() {
 
           throw new Error(
             data.message ||
-              "Prediction failed"
+              translation.validation
+                .processingFailed
           );
         }
 
@@ -308,6 +428,9 @@ export default function AssessmentPage() {
         const reportData = {
           ...answers,
           ...prediction,
+
+          assessmentLanguage:
+            language,
 
           assessmentId:
             data.assessment?._id,
@@ -337,10 +460,13 @@ export default function AssessmentPage() {
             "You are not authenticated"
         ) {
           alert(
-            "Please log in before submitting an assessment."
+            translation.validation
+              .signInRequired
           );
 
-          router.replace("/login");
+          router.replace(
+            "/login"
+          );
 
           return;
         }
@@ -348,7 +474,8 @@ export default function AssessmentPage() {
         alert(
           error instanceof Error
             ? error.message
-            : "Unable to submit assessment"
+            : translation.validation
+                .submissionFailed
         );
       } finally {
         setLoading(false);
@@ -376,18 +503,23 @@ export default function AssessmentPage() {
             <Brain
               className="text-white"
               size={32}
+              aria-hidden="true"
             />
           </div>
 
           <div>
             <h1 className="text-2xl font-bold text-white sm:text-3xl">
-              AI Tinnitus
-              Assessment
+              {
+                translation.interface
+                  .title
+              }
             </h1>
 
             <p className="mt-1 text-sm text-gray-300 sm:text-base">
-              Intelligent Hearing
-              Health Evaluation
+              {
+                translation.interface
+                  .subtitle
+              }
             </p>
           </div>
         </header>
@@ -395,8 +527,15 @@ export default function AssessmentPage() {
         <div className="mb-8">
           <div className="mb-2 flex justify-between text-sm text-gray-300">
             <span>
-              Question{" "}
-              {current + 1} /{" "}
+              {
+                translation.interface
+                  .question
+              }{" "}
+              {current + 1}{" "}
+              {
+                translation.interface
+                  .of
+              }{" "}
               {questions.length}
             </span>
 
@@ -409,8 +548,7 @@ export default function AssessmentPage() {
             <motion.div
               initial={false}
               animate={{
-                width:
-                  `${progress}%`,
+                width: `${progress}%`,
               }}
               className="h-full rounded-full bg-cyan-400"
             />
@@ -418,7 +556,7 @@ export default function AssessmentPage() {
         </div>
 
         <motion.div
-          key={current}
+          key={`${current}-${language}`}
           initial={{
             opacity: 0,
             x: 40,
@@ -431,11 +569,46 @@ export default function AssessmentPage() {
             duration: 0.25,
           }}
         >
-          <h2 className="mb-8 text-2xl font-semibold text-white">
-            {
-              currentQuestion.question
-            }
+          <h2 className="text-2xl font-semibold text-white">
+            {questionText.question}
           </h2>
+
+          <div className="mb-7 mt-4 rounded-xl border border-cyan-400/20 bg-cyan-400/10 p-4">
+            <div className="flex items-start gap-3">
+              <Info
+                size={20}
+                className="mt-0.5 shrink-0 text-cyan-300"
+                aria-hidden="true"
+              />
+
+              <div>
+                <p className="leading-6 text-gray-200">
+                  {
+                    questionText.description
+                  }
+                </p>
+
+                {questionText.guidance && (
+                  <div className="mt-3 border-t border-cyan-300/15 pt-3">
+                    <p className="text-sm leading-5 text-cyan-100">
+                      <span className="font-semibold">
+                        {
+                          translation
+                            .interface
+                            .guidance
+                        }
+                        :{" "}
+                      </span>
+
+                      {
+                        questionText.guidance
+                      }
+                    </p>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
 
           {currentQuestion.type ===
             "text" ||
@@ -458,10 +631,13 @@ export default function AssessmentPage() {
                 )
               }
               min={
-                currentQuestion.type ===
-                "number"
-                  ? 0
-                  : undefined
+                currentQuestion.min
+              }
+              max={
+                currentQuestion.max
+              }
+              step={
+                currentQuestion.step
               }
               maxLength={
                 currentQuestion.type ===
@@ -473,43 +649,66 @@ export default function AssessmentPage() {
                     : undefined
               }
               disabled={loading}
-              className="w-full rounded-xl border border-white/20 bg-white/10 p-5 text-lg text-white outline-none transition placeholder:text-gray-500 focus:border-cyan-400 disabled:opacity-60"
-              placeholder="Enter your answer"
+              className="w-full rounded-xl border border-white/20 bg-white/10 p-5 text-lg text-white outline-none transition placeholder:text-gray-500 focus:border-cyan-400 focus:ring-2 focus:ring-cyan-400/20 disabled:opacity-60"
+              placeholder={
+                questionText.placeholder ||
+                translation.interface
+                  .requiredInformation
+              }
+              aria-label={
+                questionText.question
+              }
               autoFocus
             />
           ) : (
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
               {currentQuestion.options?.map(
-                (option) => (
-                  <button
-                    type="button"
-                    key={option}
-                    onClick={() =>
-                      handleAnswer(
+                (option) => {
+                  const selected =
+                    answers[
+                      currentQuestion
+                        .name
+                    ] === option;
+
+                  return (
+                    <button
+                      type="button"
+                      key={option}
+                      onClick={() =>
+                        handleAnswer(
+                          option
+                        )
+                      }
+                      disabled={loading}
+                      aria-pressed={
+                        selected
+                      }
+                      className={`rounded-xl border p-5 text-left text-lg font-medium transition-all ${
+                        selected
+                          ? "scale-[1.02] border-cyan-400 bg-cyan-500 text-white shadow-lg shadow-cyan-500/20"
+                          : "border-white/20 bg-white/10 text-gray-200 hover:border-cyan-400/50 hover:bg-white/20"
+                      }`}
+                    >
+                      {translation
+                        .optionLabels[
                         option
-                      )
-                    }
-                    disabled={
-                      loading
-                    }
-                    className={`rounded-xl border p-5 text-lg font-medium transition-all ${
-                      answers[
-                        currentQuestion
-                          .name
-                      ] === option
-                        ? "scale-[1.02] border-cyan-500 bg-cyan-500 text-white"
-                        : "border-white/20 bg-white/10 text-gray-200 hover:bg-white/20"
-                    }`}
-                  >
-                    {option}
-                  </button>
-                )
+                      ] || option}
+                    </button>
+                  );
+                }
               )}
             </div>
           )}
         </motion.div>
 
-        <footer className="mt-10 flex justify-between gap-4">
+        <div className="mt-8 rounded-xl border border-amber-300/20 bg-amber-300/10 px-4 py-3 text-xs leading-5 text-amber-100">
+          {
+            translation.interface
+              .disclaimer
+          }
+        </div>
+
+        <footer className="mt-8 flex justify-between gap-4">
           <button
             type="button"
             onClick={
@@ -521,8 +720,15 @@ export default function AssessmentPage() {
             }
             className="flex items-center gap-2 rounded-xl bg-gray-700 px-5 py-3 text-white transition hover:bg-gray-600 disabled:cursor-not-allowed disabled:opacity-40"
           >
-            <ArrowLeft size={18} />
-            Previous
+            <ArrowLeft
+              size={18}
+              aria-hidden="true"
+            />
+
+            {
+              translation.interface
+                .previous
+            }
           </button>
 
           {current ===
@@ -536,8 +742,12 @@ export default function AssessmentPage() {
               className="rounded-xl bg-cyan-500 px-6 py-3 font-semibold text-white transition hover:bg-cyan-600 disabled:cursor-not-allowed disabled:opacity-60"
             >
               {loading
-                ? "Predicting..."
-                : "Get Prediction"}
+                ? translation
+                    .interface
+                    .analysing
+                : translation
+                    .interface
+                    .completeAssessment}
             </button>
           ) : (
             <button
@@ -546,9 +756,14 @@ export default function AssessmentPage() {
               disabled={loading}
               className="flex items-center gap-2 rounded-xl bg-cyan-500 px-6 py-3 text-white transition hover:bg-cyan-600 disabled:opacity-60"
             >
-              Next
+              {
+                translation.interface
+                  .continue
+              }
+
               <ArrowRight
                 size={18}
+                aria-hidden="true"
               />
             </button>
           )}

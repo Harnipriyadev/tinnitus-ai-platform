@@ -1,12 +1,10 @@
 "use client";
 
 import {
-  FormEvent,
+  type FormEvent,
   useState,
 } from "react";
-
 import Link from "next/link";
-
 import {
   AlertCircle,
   CheckCircle2,
@@ -23,68 +21,47 @@ import {
   registerWithEmail,
   type PublicRegistrationRole,
 } from "../../../lib/authService";
+import {
+  signupTranslations,
+} from "../../../lib/signupTranslations";
+import {
+  useLanguage,
+} from "../context/LanguageContext";
 
-const ACCOUNT_TYPES: Array<{
-  role: PublicRegistrationRole;
-  title: string;
-  description: string;
-  icon: React.ReactNode;
-}> = [
-  {
-    role: "patient",
-    title: "Patient",
-    description:
-      "Take assessments and manage your tinnitus care.",
+const ACCOUNT_ROLES:
+  PublicRegistrationRole[] = [
+    "patient",
+    "caretaker",
+    "doctor",
+  ];
 
-    icon: (
-      <UserRound
-        size={25}
-      />
-    ),
-  },
-
-  {
-    role: "caretaker",
-    title: "Caretaker",
-    description:
-      "Support patients who invite and authorize you.",
-
-    icon: (
+const getRoleIcon = (
+  role: PublicRegistrationRole
+) => {
+  if (role === "caretaker") {
+    return (
       <HeartHandshake
         size={25}
       />
-    ),
-  },
+    );
+  }
 
-  {
-    role: "doctor",
-    title: "Doctor",
-    description:
-      "Apply as a medical professional. Verification is required.",
+  if (role === "doctor") {
+    return (
+      <Stethoscope size={25} />
+    );
+  }
 
-    icon: (
-      <Stethoscope
-        size={25}
-      />
-    ),
-  },
-];
-
-const ACCOUNT_LABELS: Record<
-  PublicRegistrationRole,
-  string
-> = {
-  patient:
-    "Patient",
-
-  caretaker:
-    "Caretaker",
-
-  doctor:
-    "Doctor",
+  return <UserRound size={25} />;
 };
 
 export default function SignupPage() {
+  const { language } =
+    useLanguage();
+
+  const text =
+    signupTranslations[language];
+
   const [
     requestedRole,
     setRequestedRole,
@@ -101,163 +78,126 @@ export default function SignupPage() {
       "patient"
     );
 
-  const [
-    fullName,
-    setFullName,
-  ] =
+  const [fullName, setFullName] =
     useState("");
 
-  const [
-    email,
-    setEmail,
-  ] =
+  const [email, setEmail] =
     useState("");
 
-  const [
-    password,
-    setPassword,
-  ] =
+  const [password, setPassword] =
     useState("");
 
   const [
     confirmPassword,
     setConfirmPassword,
-  ] =
-    useState("");
+  ] = useState("");
 
-  const [
-    loading,
-    setLoading,
-  ] =
+  const [loading, setLoading] =
     useState(false);
 
-  const [
-    error,
-    setError,
-  ] =
+  const [error, setError] =
     useState("");
 
-  const [
-    success,
-    setSuccess,
-  ] =
+  const [success, setSuccess] =
     useState(false);
 
-  const validatePassword =
-    () => {
-      if (
-        password.length <
-        12
-      ) {
-        return "Password must contain at least 12 characters.";
-      }
+  const validatePassword = () => {
+    if (password.length < 12) {
+      return text.passwordErrors
+        .length;
+    }
 
-      if (
-        !/[a-z]/.test(
-          password
-        )
-      ) {
-        return "Password must contain a lowercase letter.";
-      }
+    if (!/[a-z]/.test(password)) {
+      return text.passwordErrors
+        .lowercase;
+    }
 
-      if (
-        !/[A-Z]/.test(
-          password
-        )
-      ) {
-        return "Password must contain an uppercase letter.";
-      }
+    if (!/[A-Z]/.test(password)) {
+      return text.passwordErrors
+        .uppercase;
+    }
 
-      if (
-        !/\d/.test(
-          password
-        )
-      ) {
-        return "Password must contain a number.";
-      }
+    if (!/\d/.test(password)) {
+      return text.passwordErrors
+        .number;
+    }
 
-      if (
-        !/[^A-Za-z0-9]/.test(
-          password
-        )
-      ) {
-        return "Password must contain a special character.";
-      }
+    if (
+      !/[^A-Za-z0-9]/.test(
+        password
+      )
+    ) {
+      return text.passwordErrors
+        .special;
+    }
 
-      if (
-        password !==
-        confirmPassword
-      ) {
-        return "Passwords do not match.";
-      }
+    if (
+      password !==
+      confirmPassword
+    ) {
+      return text.passwordErrors
+        .mismatch;
+    }
 
-      return null;
-    };
+    return null;
+  };
 
-  const handleSubmit =
-    async (
-      event:
-        FormEvent<HTMLFormElement>
-    ) => {
-      event.preventDefault();
+  const handleSubmit = async (
+    event:
+      FormEvent<HTMLFormElement>
+  ) => {
+    event.preventDefault();
+    setError("");
 
-      setError("");
+    const passwordError =
+      validatePassword();
 
-      const passwordError =
-        validatePassword();
+    if (passwordError) {
+      setError(passwordError);
+      return;
+    }
 
-      if (passwordError) {
-        setError(
-          passwordError
-        );
+    setLoading(true);
 
-        return;
-      }
+    try {
+      const selectedRole =
+        requestedRole;
 
-      setLoading(true);
+      await registerWithEmail({
+        fullName,
+        email,
+        password,
+        requestedRole:
+          selectedRole,
+      });
 
-      try {
-        const selectedRole =
-          requestedRole;
+      /*
+       * Require email verification before
+       * the account can sign in.
+       */
+      await logoutUser();
 
-        await registerWithEmail({
-          fullName,
-          email,
-          password,
-          requestedRole:
-            selectedRole,
-        });
-
-        /*
-         * Require email verification before
-         * the account can sign in.
-         */
-        await logoutUser();
-
-        setRegisteredRole(
-          selectedRole
-        );
-
-        setSuccess(true);
-        setPassword("");
-        setConfirmPassword("");
-      } catch (
+      setRegisteredRole(
+        selectedRole
+      );
+      setSuccess(true);
+      setPassword("");
+      setConfirmPassword("");
+    } catch (caughtError) {
+      console.error(
+        "Registration error:",
         caughtError
-      ) {
-        console.error(
-          "Registration error:",
-          caughtError
-        );
+      );
 
-        setError(
-          getAuthenticationErrorMessage(
-            caughtError
-          )
-        );
-      } finally {
-        setLoading(false);
-      }
-    };
+      setError(
+        getAuthenticationErrorMessage(
+          caughtError
+        )
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
 
   if (success) {
     const isDoctor =
@@ -273,18 +213,21 @@ export default function SignupPage() {
           />
 
           <h1 className="mt-5 text-3xl font-bold text-white">
-            Verify Your Email
+            {text.verifyEmail}
           </h1>
 
           <p className="mt-4 leading-7 text-gray-300">
-            Your{" "}
-            {ACCOUNT_LABELS[
-              registeredRole
-            ].toLowerCase()}{" "}
-            account was created.
-            We sent a verification
-            link to your email
-            address.
+            {
+              text.accountCreatedPrefix
+            }{" "}
+            {
+              text.accountTypes[
+                registeredRole
+              ].title
+            }{" "}
+            {
+              text.accountCreatedSuffix
+            }
           </p>
 
           {isDoctor && (
@@ -295,20 +238,16 @@ export default function SignupPage() {
                 />
 
                 <p className="font-semibold">
-                  Doctor verification
-                  required
+                  {
+                    text.doctorVerificationRequired
+                  }
                 </p>
               </div>
 
               <p className="mt-2 text-sm leading-6 text-amber-100/80">
-                After verifying your
-                email, you must submit
-                your Medical Council
-                registration details.
-                Consultation access will
-                remain locked until an
-                administrator approves
-                your application.
+                {
+                  text.doctorVerificationDescription
+                }
               </p>
             </div>
           )}
@@ -317,52 +256,59 @@ export default function SignupPage() {
             href="/login"
             className="mt-7 inline-flex w-full justify-center rounded-xl bg-cyan-400 py-3 font-semibold text-black transition hover:bg-cyan-300"
           >
-            Continue to Login
+            {text.continueToLogin}
           </Link>
         </section>
       </main>
     );
   }
 
+  const submitLabel =
+    requestedRole === "doctor"
+      ? text.createDoctor
+      : requestedRole ===
+          "caretaker"
+        ? text.createCaretaker
+        : text.createPatient;
+
   return (
     <main className="flex min-h-screen items-center justify-center bg-gradient-to-br from-slate-950 via-[#07121F] to-slate-900 px-5 py-10 sm:px-6">
       <div className="w-full max-w-2xl rounded-3xl border border-cyan-500/20 bg-white/5 p-6 shadow-2xl backdrop-blur-xl sm:p-8">
         <h1 className="text-center text-3xl font-bold text-white">
-          Create Account
+          {text.title}
         </h1>
 
         <p className="mt-2 text-center text-gray-400">
-          Choose how you want to
-          use the AI Tinnitus
-innitus
-          platform
+          {text.description}
         </p>
 
-        {/* Account type */}
         <fieldset
           disabled={loading}
           className="mt-7"
         >
           <legend className="mb-3 text-sm font-semibold text-gray-200">
-            Select account type
+            {text.selectAccountType}
           </legend>
 
           <div className="grid gap-3 sm:grid-cols-3">
-            {ACCOUNT_TYPES.map(
-              (account) => {
+            {ACCOUNT_ROLES.map(
+              (role) => {
                 const selected =
                   requestedRole ===
-                  account.role;
+                  role;
+
+                const account =
+                  text.accountTypes[
+                    role
+                  ];
 
                 return (
                   <button
-                    key={
-                      account.role
-                    }
+                    key={role}
                     type="button"
                     onClick={() =>
                       setRequestedRole(
-                        account.role
+                        role
                       )
                     }
                     aria-pressed={
@@ -381,15 +327,13 @@ innitus
                           : "bg-white/5 text-cyan-300"
                       }`}
                     >
-                      {
-                        account.icon
-                      }
+                      {getRoleIcon(
+                        role
+                      )}
                     </div>
 
                     <p className="mt-3 font-semibold text-white">
-                      {
-                        account.title
-                      }
+                      {account.title}
                     </p>
 
                     <p className="mt-1 text-xs leading-5 text-gray-400">
@@ -407,21 +351,14 @@ innitus
         {requestedRole ===
           "caretaker" && (
           <div className="mt-5 rounded-xl border border-cyan-400/20 bg-cyan-400/10 p-4 text-sm leading-6 text-cyan-100">
-            A caretaker cannot view
-            patient information until
-            the patient sends and
-            approves an invitation.
+            {text.caretakerNotice}
           </div>
         )}
 
         {requestedRole ===
           "doctor" && (
           <div className="mt-5 rounded-xl border border-amber-400/20 bg-amber-400/10 p-4 text-sm leading-6 text-amber-100">
-            Doctor accounts require
-            Medical Council registration
-            and administrator verification
-            before consultation features
-            are enabled.
+            {text.doctorNotice}
           </div>
         )}
 
@@ -435,30 +372,23 @@ innitus
               className="mt-0.5 shrink-0"
             />
 
-            <span>
-              {error}
-            </span>
+            <span>{error}</span>
           </div>
         )}
 
         <form
-          onSubmit={
-            handleSubmit
-          }
+          onSubmit={handleSubmit}
           className="mt-6 space-y-5"
         >
           <input
             type="text"
-            placeholder="Full Name"
-            aria-label="Full name"
+            placeholder={text.fullName}
+            aria-label={text.fullName}
             autoComplete="name"
             value={fullName}
-            onChange={(
-              event
-            ) =>
+            onChange={(event) =>
               setFullName(
-                event.target
-                  .value
+                event.target.value
               )
             }
             minLength={2}
@@ -470,17 +400,18 @@ innitus
 
           <input
             type="email"
-            placeholder="Email Address"
-            aria-label="Email address"
+            placeholder={
+              text.emailAddress
+            }
+            aria-label={
+              text.emailAddress
+            }
             autoComplete="email"
             inputMode="email"
             value={email}
-            onChange={(
-              event
-            ) =>
+            onChange={(event) =>
               setEmail(
-                event.target
-                  .value
+                event.target.value
               )
             }
             maxLength={254}
@@ -491,16 +422,13 @@ innitus
 
           <input
             type="password"
-            placeholder="Password"
-            aria-label="Password"
+            placeholder={text.password}
+            aria-label={text.password}
             autoComplete="new-password"
             value={password}
-            onChange={(
-              event
-            ) =>
+            onChange={(event) =>
               setPassword(
-                event.target
-                  .value
+                event.target.value
               )
             }
             minLength={12}
@@ -512,18 +440,17 @@ innitus
 
           <input
             type="password"
-            placeholder="Confirm Password"
-            aria-label="Confirm password"
-            autoComplete="new-password"
-            value={
-              confirmPassword
+            placeholder={
+              text.confirmPassword
             }
-            onChange={(
-              event
-            ) =>
+            aria-label={
+              text.confirmPassword
+            }
+            autoComplete="new-password"
+            value={confirmPassword}
+            onChange={(event) =>
               setConfirmPassword(
-                event.target
-                  .value
+                event.target.value
               )
             }
             minLength={12}
@@ -534,11 +461,7 @@ innitus
           />
 
           <div className="rounded-xl border border-white/10 bg-slate-900/40 p-4 text-xs leading-6 text-gray-400">
-            Password must contain
-            at least 12 characters,
-            uppercase and lowercase
-            letters, a number and a
-            special character.
+            {text.passwordRule}
           </div>
 
           <button
@@ -552,32 +475,24 @@ innitus
                   size={19}
                   className="animate-spin"
                 />
-
-                Creating secure
-                account...
+                {
+                  text.creatingAccount
+                }
               </>
-            ) : requestedRole ===
-              "doctor" ? (
-              "Create Doctor Application"
             ) : (
-              `Create ${
-                ACCOUNT_LABELS[
-                  requestedRole
-                ]
-              } Account`
+              submitLabel
             )}
           </button>
         </form>
 
         <p className="mt-6 text-center text-gray-400">
-          Already have an
-          account?{" "}
+          {text.alreadyHaveAccount}{" "}
 
           <Link
             href="/login"
             className="font-semibold text-cyan-400 hover:text-cyan-300"
           >
-            Login
+            {text.login}
           </Link>
         </p>
       </div>
