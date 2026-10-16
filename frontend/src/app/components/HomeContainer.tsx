@@ -117,7 +117,7 @@ export default function HomeContainer() {
             duration: 0.7,
             ease: "easeInOut",
           }}
-          className="absolute inset-0 pt-24"
+          className="absolute inset-0 overflow-x-hidden overflow-y-auto pt-20 sm:pt-24"
         >
           {renderScreen()}
         </motion.div>

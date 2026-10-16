@@ -9,9 +9,10 @@ export default function BrainCanvas() {
     <div
       className="
         relative
-        h-[400px] w-[400px]
-        sm:h-[460px] sm:w-[460px]
-        lg:h-[520px] lg:w-[520px]
+        aspect-square
+        w-[min(88vw,400px)]
+        sm:w-[460px]
+        lg:w-[520px]
       "
       role="img"
       aria-label="Interactive AI tinnitus brain hologram"
@@ -28,24 +29,35 @@ export default function BrainCanvas() {
           depth: true,
           stencil: false,
           preserveDrawingBuffer: false,
-          powerPreference: "high-performance",
+          powerPreference:
+            "high-performance",
         }}
         camera={{
-          position: [0, 0.15, 5.5],
+          position: [
+            0,
+            0.15,
+            5.5,
+          ],
           fov: 42,
           near: 0.1,
           far: 100,
         }}
         onCreated={({ gl }) => {
-          gl.setClearColor("#07121F", 0);
+          gl.setClearColor(
+            "#07121F",
+            0
+          );
         }}
         style={{
           width: "100%",
           height: "100%",
-          background: "transparent",
+          background:
+            "transparent",
         }}
       >
-        <Suspense fallback={null}>
+        <Suspense
+          fallback={null}
+        >
           <BrainScene />
         </Suspense>
       </Canvas>
@@ -55,9 +67,14 @@ export default function BrainCanvas() {
         aria-hidden="true"
         className="
           pointer-events-none
-          absolute left-1/2 top-1/2 -z-10
-          h-[65%] w-[65%]
-          -translate-x-1/2 -translate-y-1/2
+          absolute
+          left-1/2
+          top-1/2
+          -z-10
+          h-[65%]
+          w-[65%]
+          -translate-x-1/2
+          -translate-y-1/2
           rounded-full
           bg-cyan-400/10
           blur-[90px]
