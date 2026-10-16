@@ -28,6 +28,8 @@ const {
 
 const {
   getCaretakerConnections,
+  getConnectedPatientAppointments,
+  getConnectedPatientAssessments,
   getPatientConnections,
   inviteCaretaker,
   respondToInvitation,
@@ -37,24 +39,19 @@ const {
   "../controllers/caretakerController"
 );
 
-const router =
-  express.Router();
+const router = express.Router();
 
 /*
- * Every caretaker route requires authentication.
+ * Every route requires authentication.
  */
-router.use(
-  protect
-);
+router.use(protect);
 
 /*
  * Patient sends a caretaker invitation.
  */
 router.post(
   "/patient/invitations",
-  authorize(
-    "patient"
-  ),
+  authorize("patient"),
   validateBody(
     inviteCaretakerSchema
   ),
@@ -66,20 +63,16 @@ router.post(
  */
 router.get(
   "/patient/connections",
-  authorize(
-    "patient"
-  ),
+  authorize("patient"),
   getPatientConnections
 );
 
 /*
- * Patient updates consent permissions.
+ * Patient updates caretaker permissions.
  */
 router.patch(
   "/patient/connections/:id/permissions",
-  authorize(
-    "patient"
-  ),
+  authorize("patient"),
   validateBody(
     updateCaretakerPermissionsSchema
   ),
@@ -87,25 +80,42 @@ router.patch(
 );
 
 /*
- * Patient removes caretaker access.
+ * Patient revokes caretaker access.
  */
 router.patch(
   "/patient/connections/:id/revoke",
-  authorize(
-    "patient"
-  ),
+  authorize("patient"),
   revokeCaretakerConnection
 );
 
 /*
- * Caretaker views invitations and connections.
+ * Caretaker views invitations and
+ * accepted patient connections.
  */
 router.get(
   "/connections",
-  authorize(
-    "caretaker"
-  ),
+  authorize("caretaker"),
   getCaretakerConnections
+);
+
+/*
+ * Caretaker views a connected patient's
+ * assessments when permission is enabled.
+ */
+router.get(
+  "/connections/:id/assessments",
+  authorize("caretaker"),
+  getConnectedPatientAssessments
+);
+
+/*
+ * Caretaker views a connected patient's
+ * appointments when permission is enabled.
+ */
+router.get(
+  "/connections/:id/appointments",
+  authorize("caretaker"),
+  getConnectedPatientAppointments
 );
 
 /*
@@ -113,14 +123,11 @@ router.get(
  */
 router.patch(
   "/invitations/:id/respond",
-  authorize(
-    "caretaker"
-  ),
+  authorize("caretaker"),
   validateBody(
     respondToInvitationSchema
   ),
   respondToInvitation
 );
 
-module.exports =
-  router;
+module.exports = router;

@@ -1,9 +1,25 @@
 const {
   z,
-} = require("zod");
+} = require(
+  "zod"
+);
 
 const OBJECT_ID_PATTERN =
   /^[a-f\d]{24}$/i;
+
+const UNSAFE_CONTROL_CHARACTERS =
+  /[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/;
+
+const PRIVATE_HOST_PATTERNS = [
+  /^localhost$/i,
+  /^127\./,
+  /^10\./,
+  /^192\.168\./,
+  /^169\.254\./,
+  /^0\./,
+  /^\[?::1\]?$/i,
+  /^172\.(1[6-9]|2\d|3[01])\./,
+];
 
 const objectId = (
   fieldName
@@ -16,33 +32,122 @@ const objectId = (
       `${fieldName} is invalid`
     );
 
-const optionalMeetingLink =
+const safeText = (
+  maximumLength,
+  lengthMessage
+) =>
   z
     .string()
     .trim()
     .max(
-      500,
-      "Meeting link is too long"
+      maximumLength,
+      lengthMessage
     )
     .refine(
-      (value) => {
-        if (!value) {
-          return true;
-        }
+      (value) =>
+        !UNSAFE_CONTROL_CHARACTERS.test(
+          value
+        ),
+      "Text contains unsupported characters"
+    );
 
-        try {
-          const url =
-            new URL(value);
+const isPrivateHostname = (
+  hostname
+) =>
+  PRIVATE_HOST_PATTERNS.some(
+    (pattern) =>
+      pattern.test(
+        hostname
+      )
+  );
 
-          return (
-            url.protocol ===
-            "https:"
-          );
-        } catch {
-          return false;
-        }
-      },
-      "Enter a valid HTTPS meeting link"
+const isValidProviderHost = (
+  provider,
+  hostname
+) => {
+  const normalizedHostname =
+    hostname.toLowerCase();
+
+  switch (
+    provider
+  ) {
+    case "google_meet":
+      return (
+        normalizedHostname ===
+        "meet.google.com"
+      );
+
+    case "zoom":
+      return (
+        normalizedHostname ===
+          "zoom.us" ||
+        normalizedHostname.endsWith(
+          ".zoom.us"
+        )
+      );
+
+    case "microsoft_teams":
+      return [
+        "teams.microsoft.com",
+        "teams.live.com",
+      ].includes(
+        normalizedHostname
+      );
+
+    case "other":
+      return true;
+
+    default:
+      return false;
+  }
+};
+
+const parseMeetingUrl = (
+  value
+) => {
+  if (!value) {
+    return null;
+  }
+
+  try {
+    const url =
+      new URL(
+        value
+      );
+
+    if (
+      url.protocol !==
+        "https:" ||
+      !url.hostname ||
+      url.username ||
+      url.password ||
+      isPrivateHostname(
+        url.hostname
+      )
+    ) {
+      return null;
+    }
+
+    return url;
+  } catch {
+    return null;
+  }
+};
+
+const optionalMeetingLink =
+  safeText(
+    500,
+    "Meeting link is too long"
+  )
+    .refine(
+      (value) =>
+        !value ||
+        Boolean(
+          parseMeetingUrl(
+            value
+          )
+        ),
+      "Enter a valid public HTTPS meeting link"
     )
     .optional()
     .default("");
@@ -74,13 +179,10 @@ const bookAppointmentSchema =
           ),
 
       patientMessage:
-        z
-          .string()
-          .trim()
-          .max(
-            1000,
-            "Patient message is too long"
-          )
+        safeText(
+          1000,
+          "Patient message is too long"
+        )
           .optional()
           .default(""),
 
@@ -88,14 +190,19 @@ const bookAppointmentSchema =
         z
           .boolean()
           .optional()
-          .default(false),
+          .default(
+            false
+          ),
 
       sharedAssessmentId:
         objectId(
           "Assessment identifier"
         )
           .optional()
-          .nullable(),
+          .nullable()
+          .default(
+            null
+          ),
     })
     .strict()
     .superRefine(
@@ -121,6 +228,26 @@ const bookAppointmentSchema =
               "Patient consent is required before sharing an assessment",
           });
         }
+
+        if (
+          data
+            .assessmentSharingConsent &&
+          !data
+            .sharedAssessmentId
+        ) {
+          context.addIssue({
+            code:
+              z.ZodIssueCode
+                .custom,
+
+            path: [
+              "sharedAssessmentId",
+            ],
+
+            message:
+              "Select an assessment to share",
+          });
+        }
       }
     );
 
@@ -134,13 +261,10 @@ const doctorAppointmentResponseSchema =
         ]),
 
       doctorResponse:
-        z
-          .string()
-          .trim()
-          .max(
-            1000,
-            "Doctor response is too long"
-          )
+        safeText(
+          1000,
+          "Doctor response is too long"
+        )
           .optional()
           .default(""),
 
@@ -160,13 +284,10 @@ const doctorAppointmentResponseSchema =
         optionalMeetingLink,
 
       meetingInstructions:
-        z
-          .string()
-          .trim()
-          .max(
-            1000,
-            "Meeting instructions are too long"
-          )
+        safeText(
+          1000,
+          "Meeting instructions are too long"
+        )
           .optional()
           .default(""),
     })
@@ -179,7 +300,8 @@ const doctorAppointmentResponseSchema =
         if (
           data.decision ===
             "rejected" &&
-          !data.doctorResponse
+          !data
+            .doctorResponse
         ) {
           context.addIssue({
             code:
@@ -199,7 +321,8 @@ const doctorAppointmentResponseSchema =
           data.decision ===
             "confirmed" &&
           data.meetingLink &&
-          !data.meetingProvider
+          !data
+            .meetingProvider
         ) {
           context.addIssue({
             code:
@@ -219,7 +342,8 @@ const doctorAppointmentResponseSchema =
           data.decision ===
             "confirmed" &&
           data.meetingProvider &&
-          !data.meetingLink
+          !data
+            .meetingLink
         ) {
           context.addIssue({
             code:
@@ -237,12 +361,20 @@ const doctorAppointmentResponseSchema =
 
         if (
           data.decision ===
-          "rejected"
+          "confirmed"
         ) {
+          const meetingUrl =
+            parseMeetingUrl(
+              data.meetingLink
+            );
+
           if (
-            data.meetingProvider ||
-            data.meetingLink ||
-            data.meetingInstructions
+            data.meetingProvider &&
+            meetingUrl &&
+            !isValidProviderHost(
+              data.meetingProvider,
+              meetingUrl.hostname
+            )
           ) {
             context.addIssue({
               code:
@@ -254,9 +386,32 @@ const doctorAppointmentResponseSchema =
               ],
 
               message:
-                "Meeting details cannot be added to a rejected appointment",
+                "The meeting link does not match the selected provider",
             });
           }
+        }
+
+        if (
+          data.decision ===
+            "rejected" &&
+          (
+            data.meetingProvider ||
+            data.meetingLink ||
+            data.meetingInstructions
+          )
+        ) {
+          context.addIssue({
+            code:
+              z.ZodIssueCode
+                .custom,
+
+            path: [
+              "meetingLink",
+            ],
+
+            message:
+              "Meeting details cannot be added to a rejected appointment",
+          });
         }
       }
     );
@@ -265,13 +420,10 @@ const cancelAppointmentSchema =
   z
     .object({
       cancellationReason:
-        z
-          .string()
-          .trim()
-          .max(
-            1000,
-            "Cancellation reason is too long"
-          )
+        safeText(
+          1000,
+          "Cancellation reason is too long"
+        )
           .optional()
           .default(""),
     })

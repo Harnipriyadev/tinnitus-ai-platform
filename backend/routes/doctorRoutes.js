@@ -8,6 +8,7 @@ const protect = require(
 
 const {
   authorize,
+  requireVerifiedDoctor,
 } = require(
   "../middleware/authMiddleware"
 );
@@ -65,40 +66,17 @@ const router =
 
 /*
  * Every route in this file requires an
- * authenticated Doctor account.
+ * authenticated doctor account.
+ *
+ * A doctor does not need to be verified to
+ * create or submit an application.
  */
 router.use(
   protect,
-  authorize("doctor")
+  authorize(
+    "doctor"
+  )
 );
-
-/*
- * Allows consultation features only after
- * administrator verification.
- */
-const requireVerifiedDoctor =
-  (
-    req,
-    res,
-    next
-  ) => {
-    if (
-      req.user
-        .roleVerificationStatus !==
-      "verified"
-    ) {
-      return res
-        .status(403)
-        .json({
-          success: false,
-
-          message:
-            "Doctor verification is required before using consultation features",
-        });
-    }
-
-    return next();
-  };
 
 /*
  * Get the current doctor's application.
@@ -109,7 +87,10 @@ router.get(
 );
 
 /*
- * Create or update the application draft.
+ * Create or update the doctor's application.
+ *
+ * The controller must permit changes only when
+ * the application is a draft or was rejected.
  */
 router.put(
   "/application",
@@ -122,7 +103,7 @@ router.put(
 /*
  * Upload one protected sample document.
  *
- * Multipart field names:
+ * Required multipart fields:
  * document
  * documentType
  * demoConfirmation
@@ -146,7 +127,12 @@ router.post(
 );
 
 /*
- * Get availability created by the currently
+ * Consultation availability routes below
+ * require an administrator-verified doctor.
+ */
+
+/*
+ * Get availability owned by the currently
  * authenticated and verified doctor.
  */
 router.get(
@@ -168,8 +154,8 @@ router.put(
 );
 
 /*
- * Delete one availability date owned by the
- * currently authenticated doctor.
+ * Delete an availability date owned by the
+ * currently authenticated verified doctor.
  */
 router.delete(
   "/availability/:id",

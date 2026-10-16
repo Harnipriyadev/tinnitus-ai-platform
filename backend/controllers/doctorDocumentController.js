@@ -21,16 +21,20 @@ const ALLOWED_DOCUMENT_TYPES =
     "qualification_certificate",
   ]);
 
-const FILE_EXTENSIONS = {
-  "application/pdf":
-    ".pdf",
+const FILE_EXTENSIONS =
+  Object.freeze({
+    "application/pdf":
+      ".pdf",
 
-  "image/jpeg":
-    ".jpg",
+    "image/jpeg":
+      ".jpg",
 
-  "image/png":
-    ".png",
-};
+    "image/png":
+      ".png",
+  });
+
+const MAX_FILE_SIZE =
+  5 * 1024 * 1024;
 
 const PRIVATE_UPLOAD_ROOT =
   path.resolve(
@@ -39,21 +43,94 @@ const PRIVATE_UPLOAD_ROOT =
     "private_uploads"
   );
 
+/*
+ * Storage keys use forward slashes in MongoDB
+ * so they work across Windows and Linux.
+ */
+const normalizeStorageKey = (
+  storageKey
+) => {
+  if (
+    typeof storageKey !==
+      "string" ||
+    !storageKey.trim()
+  ) {
+    throw new Error(
+      "Invalid private storage key"
+    );
+  }
+
+  const normalizedKey =
+    storageKey
+      .replace(
+        /\\/g,
+        "/"
+      )
+      .replace(
+        /^\/+/,
+        ""
+      );
+
+  const segments =
+    normalizedKey.split(
+      "/"
+    );
+
+  if (
+    segments.length < 2 ||
+    segments.some(
+      (segment) =>
+        !segment ||
+        segment === "." ||
+        segment === ".." ||
+        !/^[A-Za-z0-9._-]+$/.test(
+          segment
+        )
+    )
+  ) {
+    throw new Error(
+      "Invalid private storage key"
+    );
+  }
+
+  return segments.join(
+    "/"
+  );
+};
+
 const getAbsoluteStoragePath = (
   storageKey
 ) => {
-  const absolutePath =
-    path.resolve(
-      PRIVATE_UPLOAD_ROOT,
+  const normalizedKey =
+    normalizeStorageKey(
       storageKey
     );
 
+  const absolutePath =
+    path.resolve(
+      PRIVATE_UPLOAD_ROOT,
+      ...normalizedKey.split(
+        "/"
+      )
+    );
+
+  const relativePath =
+    path.relative(
+      PRIVATE_UPLOAD_ROOT,
+      absolutePath
+    );
+
   /*
-   * Prevent directory traversal.
+   * Prevent absolute-path and directory-
+   * traversal attacks.
    */
   if (
-    !absolutePath.startsWith(
-      `${PRIVATE_UPLOAD_ROOT}${path.sep}`
+    !relativePath ||
+    relativePath.startsWith(
+      ".."
+    ) ||
+    path.isAbsolute(
+      relativePath
     )
   ) {
     throw new Error(
@@ -62,6 +139,25 @@ const getAbsoluteStoragePath = (
   }
 
   return absolutePath;
+};
+
+const clearFileBuffer = (
+  file
+) => {
+  if (
+    file &&
+    Buffer.isBuffer(
+      file.buffer
+    )
+  ) {
+    /*
+     * Reduce the time sensitive file content
+     * remains available in process memory.
+     */
+    file.buffer.fill(0);
+    file.buffer =
+      undefined;
+  }
 };
 
 const removeStoredFile =
@@ -84,8 +180,16 @@ const removeStoredFile =
         "ENOENT"
       ) {
         console.error(
-          "Unable to remove private doctor document:",
-          error.message
+          "Private document cleanup failed:",
+          {
+            name:
+              error.name ||
+              "Error",
+
+            code:
+              error.code ||
+              "FILE_DELETE_ERROR",
+          }
         );
       }
     }
@@ -97,8 +201,7 @@ const uploadDoctorDocument =
     res,
     next
   ) => {
-    let newStorageKey =
-      "";
+    let newStorageKey = "";
 
     try {
       const {
@@ -111,6 +214,10 @@ const uploadDoctorDocument =
           documentType
         )
       ) {
+        clearFileBuffer(
+          req.file
+        );
+
         return res
           .status(400)
           .json({
@@ -122,13 +229,17 @@ const uploadDoctorDocument =
       }
 
       /*
-       * This local storage system is only
-       * for fake/sample project documents.
+       * Local storage is permitted only for
+       * fake project demonstration files.
        */
       if (
         demoConfirmation !==
         "true"
       ) {
+        clearFileBuffer(
+          req.file
+        );
+
         return res
           .status(400)
           .json({
@@ -136,6 +247,64 @@ const uploadDoctorDocument =
 
             message:
               "Confirm that this is a fake sample document for development",
+          });
+      }
+
+      if (
+        !req.file ||
+        !Buffer.isBuffer(
+          req.file.buffer
+        )
+      ) {
+        return res
+          .status(400)
+          .json({
+            success: false,
+
+            message:
+              "A valid document file is required",
+          });
+      }
+
+      if (
+        req.file.size < 100 ||
+        req.file.size >
+          MAX_FILE_SIZE ||
+        req.file.buffer.length !==
+          req.file.size
+      ) {
+        clearFileBuffer(
+          req.file
+        );
+
+        return res
+          .status(400)
+          .json({
+            success: false,
+
+            message:
+              "Uploaded document size is invalid",
+          });
+      }
+
+      const extension =
+        FILE_EXTENSIONS[
+          req.file
+            .mimetype
+        ];
+
+      if (!extension) {
+        clearFileBuffer(
+          req.file
+        );
+
+        return res
+          .status(400)
+          .json({
+            success: false,
+
+            message:
+              "Uploaded document type is not supported",
           });
       }
 
@@ -150,6 +319,10 @@ const uploadDoctorDocument =
           );
 
       if (!profile) {
+        clearFileBuffer(
+          req.file
+        );
+
         return res
           .status(404)
           .json({
@@ -169,6 +342,10 @@ const uploadDoctorDocument =
             .verificationStatus
         )
       ) {
+        clearFileBuffer(
+          req.file
+        );
+
         return res
           .status(409)
           .json({
@@ -179,26 +356,38 @@ const uploadDoctorDocument =
           });
       }
 
-      const extension =
-        FILE_EXTENSIONS[
-          req.file.mimetype
-        ];
-
       const userDirectory =
-        path.join(
+        [
           "doctor-verification",
           String(
             req.user._id
-          )
-        );
+          ),
+        ].join("/");
+
+      /*
+       * Prefer the random storage name created
+       * by the upload middleware, but regenerate
+       * it if its format does not match.
+       */
+      const proposedStorageName =
+        req.file
+          .storageName;
 
       const fileName =
-        `${crypto.randomUUID()}${extension}`;
+        typeof proposedStorageName ===
+          "string" &&
+        new RegExp(
+          `^[0-9a-f-]{36}\\${extension}$`,
+          "i"
+        ).test(
+          proposedStorageName
+        )
+          ? proposedStorageName
+          : `${crypto.randomUUID()}${extension}`;
 
       newStorageKey =
-        path.join(
-          userDirectory,
-          fileName
+        normalizeStorageKey(
+          `${userDirectory}/${fileName}`
         );
 
       const absolutePath =
@@ -212,12 +401,14 @@ const uploadDoctorDocument =
         ),
         {
           recursive: true,
+          mode: 0o700,
         }
       );
 
       /*
-       * Local file permissions allow only the
-       * backend process owner to read/write it.
+       * wx prevents accidental overwriting.
+       * 0600 allows only the backend process
+       * owner to read and write the file.
        */
       await fs.writeFile(
         absolutePath,
@@ -226,6 +417,10 @@ const uploadDoctorDocument =
           mode: 0o600,
           flag: "wx",
         }
+      );
+
+      clearFileBuffer(
+        req.file
       );
 
       const existingDocument =
@@ -244,16 +439,26 @@ const uploadDoctorDocument =
         path
           .basename(
             req.file
-              .originalname
+              .originalname ||
+              `document${extension}`
+          )
+          .normalize(
+            "NFKC"
+          )
+          .replace(
+            /[\u0000-\u001f\u007f]/g,
+            ""
           )
           .replace(
             /[^A-Za-z0-9._ -]/g,
             "_"
           )
+          .trim()
           .slice(
             0,
-            255
-          );
+            120
+          ) ||
+        `document${extension}`;
 
       if (
         existingDocument
@@ -296,8 +501,8 @@ const uploadDoctorDocument =
       await profile.save();
 
       /*
-       * Delete the replaced file only after
-       * MongoDB successfully saves the new one.
+       * Delete an older file only after the new
+       * metadata has been saved successfully.
        */
       if (
         previousStorageKey &&
@@ -352,13 +557,15 @@ const uploadDoctorDocument =
           },
         });
     } catch (error) {
+      clearFileBuffer(
+        req.file
+      );
+
       /*
-       * Remove a newly written file if the
-       * database operation fails.
+       * Remove the new file if saving its
+       * MongoDB metadata fails.
        */
-      if (
-        newStorageKey
-      ) {
+      if (newStorageKey) {
         await removeStoredFile(
           newStorageKey
         );

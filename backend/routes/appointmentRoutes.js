@@ -8,6 +8,7 @@ const protect = require(
 
 const {
   authorize,
+  requireVerifiedDoctor,
 } = require(
   "../middleware/authMiddleware"
 );
@@ -30,6 +31,7 @@ const {
   bookAppointment,
   cancelAppointment,
   getDoctorAppointments,
+  getDoctorSharedAssessment,
   getPatientAppointments,
   respondToAppointment,
 } = require(
@@ -47,45 +49,15 @@ const router =
 
 /*
  * Every appointment route requires
- * an authenticated account.
+ * authentication.
  */
 router.use(
   protect
 );
 
 /*
- * Allows consultation management only for
- * doctors approved by an administrator.
- */
-const requireVerifiedDoctor =
-  (
-    req,
-    res,
-    next
-  ) => {
-    if (
-      req.user.role !==
-        "doctor" ||
-      req.user
-        .roleVerificationStatus !==
-        "verified"
-    ) {
-      return res
-        .status(403)
-        .json({
-          success: false,
-
-          message:
-            "A verified doctor account is required",
-        });
-    }
-
-    return next();
-  };
-
-/*
  * Patient views verified doctors and their
- * available future consultation slots.
+ * available consultation slots.
  */
 router.get(
   "/doctors",
@@ -96,7 +68,7 @@ router.get(
 );
 
 /*
- * Patient books an available time slot.
+ * Patient books an appointment.
  */
 router.post(
   "/",
@@ -110,7 +82,7 @@ router.post(
 );
 
 /*
- * Patient views their appointments.
+ * Patient views appointment history.
  */
 router.get(
   "/patient",
@@ -121,8 +93,32 @@ router.get(
 );
 
 /*
- * Patient cancels a requested or
- * confirmed appointment.
+ * Verified doctor views assigned appointments.
+ */
+router.get(
+  "/doctor",
+  authorize(
+    "doctor"
+  ),
+  requireVerifiedDoctor,
+  getDoctorAppointments
+);
+
+/*
+ * Verified doctor views an assessment shared
+ * through an appointment assigned to them.
+ */
+router.get(
+  "/doctor/:id/shared-assessment",
+  authorize(
+    "doctor"
+  ),
+  requireVerifiedDoctor,
+  getDoctorSharedAssessment
+);
+
+/*
+ * Patient cancels their appointment.
  */
 router.patch(
   "/:id/cancel",
@@ -136,20 +132,14 @@ router.patch(
 );
 
 /*
- * Verified doctor views appointment requests.
- */
-router.get(
-  "/doctor",
-  requireVerifiedDoctor,
-  getDoctorAppointments
-);
-
-/*
- * Verified doctor confirms or rejects
- * an appointment request.
+ * Verified doctor confirms or rejects an
+ * appointment assigned to them.
  */
 router.patch(
   "/:id/respond",
+  authorize(
+    "doctor"
+  ),
   requireVerifiedDoctor,
   validateBody(
     doctorAppointmentResponseSchema
