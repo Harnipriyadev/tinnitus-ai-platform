@@ -1,18 +1,24 @@
 @import "tailwindcss";
 
+/*
+ * Global responsive settings
+ */
 html {
   scroll-behavior: smooth;
 }
 
 html,
 body {
+  width: 100%;
+  max-width: 100%;
+  min-height: 100%;
   margin: 0;
   padding: 0;
-  width: 100%;
-  min-height: 100%;
+  overflow-x: clip;
 }
 
 body {
+  min-width: 0;
   background: linear-gradient(
     135deg,
     #0f172a 0%,
@@ -20,91 +26,275 @@ body {
     #312e81 100%
   );
   color: white;
-  font-family: Arial, Helvetica, sans-serif;
+  font-family:
+    Arial,
+    Helvetica,
+    sans-serif;
 }
 
-* {
+*,
+*::before,
+*::after {
   box-sizing: border-box;
 }
+
+main,
+header,
+footer,
+section,
+article,
+nav,
+aside,
+div {
+  min-width: 0;
+}
+
+img,
+svg,
+video {
+  display: block;
+  max-width: 100%;
+  height: auto;
+}
+
+canvas {
+  display: block;
+  max-width: 100%;
+}
+
+button,
+input,
+textarea,
+select {
+  max-width: 100%;
+  font: inherit;
+}
+
+/*
+ * Hologram page
+ */
 .hologram-page {
-  min-height: 100vh;
   display: flex;
   align-items: center;
   justify-content: center;
+  width: 100%;
+  max-width: 100%;
+  min-height: 100vh;
+  min-height: 100dvh;
+  padding:
+    max(16px, env(safe-area-inset-top))
+    max(16px, env(safe-area-inset-right))
+    max(16px, env(safe-area-inset-bottom))
+    max(16px, env(safe-area-inset-left));
   overflow: hidden;
   background:
-    radial-gradient(circle at center, #063b4a 0%, #020817 55%, #000 100%);
+    radial-gradient(
+      circle at center,
+      #063b4a 0%,
+      #020817 55%,
+      #000000 100%
+    );
 }
 
+/*
+ * Responsive hologram frame
+ */
 .hologram {
   position: relative;
-  width: 420px;
-  padding: 50px 35px;
+  width: min(
+    100%,
+    420px
+  );
+  max-width: 100%;
+  padding:
+    clamp(
+      30px,
+      8vw,
+      50px
+    )
+    clamp(
+      20px,
+      6vw,
+      35px
+    );
   overflow: hidden;
   text-align: center;
   color: #79f7ff;
-  background: rgba(7, 50, 65, 0.25);
-  border: 1px solid rgba(121, 247, 255, 0.7);
-  border-radius: 24px;
+  background:
+    rgba(
+      7,
+      50,
+      65,
+      0.25
+    );
+  border:
+    1px solid
+    rgba(
+      121,
+      247,
+      255,
+      0.7
+    );
+  border-radius:
+    clamp(
+      18px,
+      5vw,
+      24px
+    );
   box-shadow:
     0 0 15px #00d9ff,
-    inset 0 0 30px rgba(0, 217, 255, 0.2);
-  backdrop-filter: blur(12px);
-  animation: hologramFloat 3s ease-in-out infinite;
+    inset 0 0 30px
+      rgba(
+        0,
+        217,
+        255,
+        0.2
+      );
+  backdrop-filter:
+    blur(12px);
+  animation:
+    hologramFloat
+    3s
+    ease-in-out
+    infinite;
 }
 
 .hologram::before {
-  content: "";
   position: absolute;
   inset: 0;
   pointer-events: none;
-  background: repeating-linear-gradient(
-    to bottom,
-    transparent 0,
-    transparent 4px,
-    rgba(121, 247, 255, 0.08) 5px
-  );
+  content: "";
+  background:
+    repeating-linear-gradient(
+      to bottom,
+      transparent 0,
+      transparent 4px,
+      rgba(
+        121,
+        247,
+        255,
+        0.08
+      )
+      5px
+    );
 }
 
 .hologram-content {
   position: relative;
   z-index: 2;
+  width: 100%;
+  max-width: 100%;
 }
 
 .hologram-icon {
   margin-bottom: 15px;
-  font-size: 75px;
-  filter: drop-shadow(0 0 14px #00eaff);
+  font-size:
+    clamp(
+      52px,
+      16vw,
+      75px
+    );
+  filter:
+    drop-shadow(
+      0 0 14px
+      #00eaff
+    );
 }
 
 .hologram h1 {
-  margin-bottom: 15px;
-  font-size: 42px;
+  margin:
+    0 0 15px;
+  overflow-wrap:
+    anywhere;
+  font-size:
+    clamp(
+      28px,
+      9vw,
+      42px
+    );
+  line-height: 1.15;
   text-shadow:
-    0 0 8px #00eaff,
-    0 0 20px #00eaff;
+    0 0 8px
+      #00eaff,
+    0 0 20px
+      #00eaff;
 }
 
 .hologram p {
+  margin:
+    0 auto;
+  overflow-wrap:
+    anywhere;
   color: #c9fbff;
+  font-size:
+    clamp(
+      14px,
+      4vw,
+      16px
+    );
   line-height: 1.6;
 }
 
 .hologram button {
+  width: auto;
+  max-width: 100%;
+  min-height: 44px;
   margin-top: 25px;
-  padding: 12px 25px;
+  padding:
+    12px
+    clamp(
+      18px,
+      6vw,
+      25px
+    );
   color: #7af7ff;
   cursor: pointer;
-  background: transparent;
-  border: 1px solid #7af7ff;
-  border-radius: 30px;
-  box-shadow: 0 0 12px rgba(0, 234, 255, 0.6);
+  overflow-wrap:
+    anywhere;
+  background:
+    transparent;
+  border:
+    1px solid
+    #7af7ff;
+  border-radius:
+    30px;
+  box-shadow:
+    0 0 12px
+    rgba(
+      0,
+      234,
+      255,
+      0.6
+    );
+  transition:
+    color 200ms ease,
+    background-color 200ms ease,
+    box-shadow 200ms ease,
+    transform 200ms ease;
 }
 
 .hologram button:hover {
   color: #001014;
-  background: #7af7ff;
-  box-shadow: 0 0 25px #00eaff;
+  background:
+    #7af7ff;
+  box-shadow:
+    0 0 25px
+    #00eaff;
+  transform:
+    translateY(-2px);
+}
+
+.hologram button:focus-visible {
+  outline:
+    3px solid
+    rgba(
+      121,
+      247,
+      255,
+      0.5
+    );
+  outline-offset:
+    4px;
 }
 
 .scan-line {
@@ -114,9 +304,17 @@ body {
   left: 0;
   width: 100%;
   height: 4px;
-  background: #b5fbff;
-  box-shadow: 0 0 18px #00eaff;
-  animation: scan 3s linear infinite;
+  pointer-events: none;
+  background:
+    #b5fbff;
+  box-shadow:
+    0 0 18px
+    #00eaff;
+  animation:
+    scan
+    3s
+    linear
+    infinite;
 }
 
 @keyframes scan {
@@ -132,10 +330,57 @@ body {
 @keyframes hologramFloat {
   0%,
   100% {
-    transform: translateY(0);
+    transform:
+      translateY(0);
   }
 
   50% {
-    transform: translateY(-12px);
+    transform:
+      translateY(-12px);
+  }
+}
+
+/*
+ * Small mobile screens
+ */
+@media (
+  max-width: 480px
+) {
+  .hologram-page {
+    align-items:
+      center;
+    padding: 14px;
+  }
+
+  .hologram {
+    width: 100%;
+    padding:
+      28px
+      18px;
+    border-radius:
+      18px;
+  }
+
+  .hologram button {
+    width: 100%;
+  }
+}
+
+/*
+ * Reduce movement when requested
+ * by the user's device.
+ */
+@media (
+  prefers-reduced-motion:
+    reduce
+) {
+  html {
+    scroll-behavior:
+      auto;
+  }
+
+  .hologram,
+  .scan-line {
+    animation: none;
   }
 }

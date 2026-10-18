@@ -1,5 +1,6 @@
 import type {
   Metadata,
+  Viewport,
 } from "next";
 
 import {
@@ -41,6 +42,23 @@ export const metadata: Metadata = {
     "AI-driven tinnitus assessment and personalised therapeutic support platform",
 };
 
+/*
+ * Ensures the website uses the actual
+ * width of mobile and tablet screens.
+ */
+export const viewport: Viewport = {
+  width:
+    "device-width",
+
+  initialScale: 1,
+
+  viewportFit:
+    "cover",
+
+  themeColor:
+    "#07121F",
+};
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -51,11 +69,40 @@ export default function RootLayout({
     <html
       lang="en"
       suppressHydrationWarning
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+      className={`
+        ${geistSans.variable}
+        ${geistMono.variable}
+        h-full
+        w-full
+        overflow-x-clip
+        antialiased
+      `}
     >
-      <body className="flex min-h-full flex-col">
+      <body
+        className="
+          flex
+          min-h-dvh
+          w-full
+          max-w-full
+          flex-col
+          overflow-x-clip
+        "
+      >
         <LanguageProvider>
-          {children}
+          <main
+            className="
+              flex
+              min-h-dvh
+              w-full
+              min-w-0
+              max-w-full
+              flex-1
+              flex-col
+              overflow-x-clip
+            "
+          >
+            {children}
+          </main>
 
           <LanguageSelector />
         </LanguageProvider>
