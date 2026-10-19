@@ -1,0 +1,103 @@
+{
+  "model_version": "2.0.0",
+  "trained_at": "2026-10-19T07:40:19.265404+00:00",
+  "dataset_rows": 10000,
+  "training_rows": 8000,
+  "test_rows": 2000,
+  "selected_model": "DecisionTree",
+  "comparison": {
+    "DecisionTree": {
+      "cv_accuracy_mean": 0.999625,
+      "cv_accuracy_std": 0.0004999999999999894,
+      "cv_macro_f1_mean": 0.9990096434934248,
+      "test_accuracy": 0.999,
+      "test_macro_f1": 0.9994404071132142
+    },
+    "RandomForest": {
+      "cv_accuracy_mean": 0.999375,
+      "cv_accuracy_std": 0.0005590169943749355,
+      "cv_macro_f1_mean": 0.9983565924213302,
+      "test_accuracy": 0.999,
+      "test_macro_f1": 0.9994404071132142
+    },
+    "ExtraTrees": {
+      "cv_accuracy_mean": 0.9515,
+      "cv_accuracy_std": 0.005871009282908669,
+      "cv_macro_f1_mean": 0.892474617349472,
+      "test_accuracy": 0.961,
+      "test_macro_f1": 0.9197194622714582
+    }
+  },
+  "test_classification_report": {
+    "Mild": {
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1-score": 1.0,
+      "support": 108.0
+    },
+    "Moderate": {
+      "precision": 0.9978165938864629,
+      "recall": 1.0,
+      "f1-score": 0.9989071038251366,
+      "support": 914.0
+    },
+    "Severe": {
+      "precision": 1.0,
+      "recall": 0.9977116704805492,
+      "f1-score": 0.9988545246277205,
+      "support": 874.0
+    },
+    "Critical": {
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1-score": 1.0,
+      "support": 104.0
+    },
+    "accuracy": 0.999,
+    "macro avg": {
+      "precision": 0.9994541484716157,
+      "recall": 0.9994279176201373,
+      "f1-score": 0.9994404071132142,
+      "support": 2000.0
+    },
+    "weighted avg": {
+      "precision": 0.9990021834061136,
+      "recall": 0.999,
+      "f1-score": 0.9989999737104013,
+      "support": 2000.0
+    }
+  },
+  "confusion_matrix_labels": [
+    "Mild",
+    "Moderate",
+    "Severe",
+    "Critical"
+  ],
+  "confusion_matrix": [
+    [
+      108,
+      0,
+      0,
+      0
+    ],
+    [
+      0,
+      914,
+      0,
+      0
+    ],
+    [
+      0,
+      2,
+      872,
+      0
+    ],
+    [
+      0,
+      0,
+      0,
+      104
+    ]
+  ],
+  "important_note": "Metrics measure agreement with the documented synthetic screening rubric, not clinical diagnostic accuracy."
+}
