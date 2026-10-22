@@ -1,0 +1,238 @@
+{
+  "name": "Aurisense AI - Live Care Automation",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "aurisense-care-automation",
+        "authentication": "headerAuth",
+        "responseMode": "onReceived",
+        "options": {}
+      },
+      "id": "webhook",
+      "name": "Assessment Result Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [-760, 0],
+      "webhookId": "aurisense-care-automation"
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = $json.body || {};\nconst allowed = ['Mild', 'Moderate', 'Severe', 'Critical'];\nconst severity = allowed.includes(body.severity) ? body.severity : 'Moderate';\nif (!body.workflowId || !body.callbackUrl || !body.callbackSecret) {\n  throw new Error('Missing required automation fields');\n}\nreturn [{ json: {\n  workflowId: String(body.workflowId),\n  assessmentId: String(body.assessmentId || ''),\n  severity,\n  risk: String(body.risk || ''),\n  callbackUrl: String(body.callbackUrl),\n  callbackSecret: String(body.callbackSecret)\n} }];"
+      },
+      "id": "normalize",
+      "name": "Validate and Normalize",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-540, 0]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $json.callbackUrl }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-Aurisense-Callback-Secret",
+              "value": "={{ $json.callbackSecret }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ workflowId: $json.workflowId, step: 'received', stepStatus: 'completed', message: 'Assessment securely received by the automation engine', workflowStatus: 'running' }) }}",
+        "options": {}
+      },
+      "id": "received",
+      "name": "Mark Assessment Received",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [-300, 0]
+    },
+    {
+      "parameters": {
+        "amount": 1,
+        "unit": "seconds"
+      },
+      "id": "wait-analysis",
+      "name": "Live Pause - Analysis",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [-80, 0],
+      "webhookId": "wait-analysis"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Validate and Normalize').item.json.callbackUrl }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-Aurisense-Callback-Secret",
+              "value": "={{ $('Validate and Normalize').item.json.callbackSecret }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ workflowId: $('Validate and Normalize').item.json.workflowId, step: 'analysed', stepStatus: 'completed', message: $('Validate and Normalize').item.json.severity + ' severity identified', workflowStatus: 'running' }) }}",
+        "options": {}
+      },
+      "id": "analysed",
+      "name": "Publish Severity Result",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [140, 0]
+    },
+    {
+      "parameters": {
+        "jsCode": "const data = $('Validate and Normalize').item.json;\nconst plans = {\n  Mild: { action: 'Personalised self-care and sound-therapy guidance', days: 14 },\n  Moderate: { action: 'Personalised care plan and doctor consultation suggested', days: 7 },\n  Severe: { action: 'Priority ENT consultation recommended', days: 3 },\n  Critical: { action: 'Urgent professional medical evaluation recommended', days: 1 }\n};\nreturn [{ json: { ...data, ...plans[data.severity] } }];"
+      },
+      "id": "plan",
+      "name": "Create Severity-Based Plan",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [360, 0]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $json.callbackUrl }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-Aurisense-Callback-Secret",
+              "value": "={{ $json.callbackSecret }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ workflowId: $json.workflowId, step: 'care_plan', stepStatus: 'completed', message: $json.action, recommendedAction: $json.action, workflowStatus: 'running' }) }}",
+        "options": {}
+      },
+      "id": "care-plan",
+      "name": "Publish Care Plan",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [580, 0]
+    },
+    {
+      "parameters": {
+        "amount": 1,
+        "unit": "seconds"
+      },
+      "id": "wait-followup",
+      "name": "Live Pause - Follow-up",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [800, 0],
+      "webhookId": "wait-followup"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Create Severity-Based Plan').item.json.callbackUrl }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-Aurisense-Callback-Secret",
+              "value": "={{ $('Create Severity-Based Plan').item.json.callbackSecret }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ workflowId: $('Create Severity-Based Plan').item.json.workflowId, step: 'follow_up', stepStatus: 'completed', message: 'Follow-up scheduled in ' + $('Create Severity-Based Plan').item.json.days + ' day(s)', followUpDays: $('Create Severity-Based Plan').item.json.days, workflowStatus: 'running' }) }}",
+        "options": {}
+      },
+      "id": "followup",
+      "name": "Schedule Follow-up",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1020, 0]
+    },
+    {
+      "parameters": {
+        "amount": 1,
+        "unit": "seconds"
+      },
+      "id": "wait-complete",
+      "name": "Live Pause - Complete",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [1240, 0],
+      "webhookId": "wait-complete"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Validate and Normalize').item.json.callbackUrl }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-Aurisense-Callback-Secret",
+              "value": "={{ $('Validate and Normalize').item.json.callbackSecret }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ workflowId: $('Validate and Normalize').item.json.workflowId, step: 'completed', stepStatus: 'completed', message: 'Personalised care workflow completed', workflowStatus: 'completed' }) }}",
+        "options": {}
+      },
+      "id": "complete",
+      "name": "Complete Automation",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1460, 0]
+    }
+  ],
+  "connections": {
+    "Assessment Result Webhook": {
+      "main": [[{"node": "Validate and Normalize", "type": "main", "index": 0}]]
+    },
+    "Validate and Normalize": {
+      "main": [[{"node": "Mark Assessment Received", "type": "main", "index": 0}]]
+    },
+    "Mark Assessment Received": {
+      "main": [[{"node": "Live Pause - Analysis", "type": "main", "index": 0}]]
+    },
+    "Live Pause - Analysis": {
+      "main": [[{"node": "Publish Severity Result", "type": "main", "index": 0}]]
+    },
+    "Publish Severity Result": {
+      "main": [[{"node": "Create Severity-Based Plan", "type": "main", "index": 0}]]
+    },
+    "Create Severity-Based Plan": {
+      "main": [[{"node": "Publish Care Plan", "type": "main", "index": 0}]]
+    },
+    "Publish Care Plan": {
+      "main": [[{"node": "Live Pause - Follow-up", "type": "main", "index": 0}]]
+    },
+    "Live Pause - Follow-up": {
+      "main": [[{"node": "Schedule Follow-up", "type": "main", "index": 0}]]
+    },
+    "Schedule Follow-up": {
+      "main": [[{"node": "Live Pause - Complete", "type": "main", "index": 0}]]
+    },
+    "Live Pause - Complete": {
+      "main": [[{"node": "Complete Automation", "type": "main", "index": 0}]]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "active": false,
+  "versionId": "8d773139-e184-42c5-a3a1-f335a588360f",
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "tags": []
+}

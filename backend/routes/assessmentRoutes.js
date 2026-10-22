@@ -7,6 +7,12 @@ const Assessment = require(
   "../models/Assessment"
 );
 
+const {
+  startCareAutomation,
+} = require(
+  "../services/n8nAutomationService"
+);
+
 const protect = require(
   "../middleware/authMiddleware"
 );
@@ -224,6 +230,37 @@ router.post(
                 }
               );
 
+            const severity =
+              typeof parsedPrediction ===
+                "object" &&
+              parsedPrediction !== null
+                ? String(
+                    parsedPrediction.stage ||
+                      parsedPrediction.severity ||
+                      "Unknown"
+                  )
+                : "Unknown";
+
+            const risk =
+              typeof parsedPrediction ===
+                "object" &&
+              parsedPrediction !== null
+                ? String(
+                    parsedPrediction.risk ||
+                      ""
+                  )
+                : "";
+
+            const automation =
+              await startCareAutomation({
+                userId:
+                  req.user._id,
+                assessmentId:
+                  assessment._id,
+                severity,
+                risk,
+              });
+
             return res
               .status(201)
               .json({
@@ -233,6 +270,13 @@ router.post(
                   parsedPrediction,
 
                 assessment,
+
+                automation: {
+                  workflowId:
+                    automation.workflowId,
+                  status:
+                    automation.status,
+                },
               });
           } catch (
             databaseError
