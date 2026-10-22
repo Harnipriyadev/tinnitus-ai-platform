@@ -52,11 +52,6 @@ type AssessmentResponse = {
     _id?: string;
     createdAt?: string;
   };
-
-  automation?: {
-    workflowId?: string;
-    status?: string;
-  };
 };
 
 /*
@@ -452,16 +447,7 @@ export default function AssessmentPage() {
           )
         );
 
-        if (
-          data.automation
-            ?.workflowId
-        ) {
-          router.push(
-            `/automation?workflowId=${encodeURIComponent(data.automation.workflowId)}`
-          );
-        } else {
-          router.push("/result");
-        }
+        router.push("/result");
       } catch (error) {
         console.error(
           "Assessment submission error:",

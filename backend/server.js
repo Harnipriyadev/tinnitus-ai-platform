@@ -63,10 +63,6 @@ const prescriptionRoutes = require(
   "./routes/prescriptionRoutes"
 );
 
-const automationRoutes = require(
-  "./routes/automationRoutes"
-);
-
 const {
   apiLimiter,
   corsMiddleware,
@@ -233,14 +229,6 @@ app.use(
 app.use(
   "/api/assessment",
   assessmentRoutes
-);
-
-/*
- * Live n8n care-automation routes.
- */
-app.use(
-  "/api/automation",
-  automationRoutes
 );
 
 /*
